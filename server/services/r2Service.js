@@ -5,9 +5,14 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 const DEFAULT_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const DEFAULT_PRESIGN_EXPIRY_SECONDS = 60 * 10;
 
-const requiredEnv = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'];
+const hasEndpoint = () => !!(process.env.R2_S3_ENDPOINT || process.env.R2_ENDPOINT);
 
-const getMissingEnv = () => requiredEnv.filter((name) => !process.env[name]);
+const getRequiredEnv = () => {
+  const base = ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'];
+  return hasEndpoint() ? base : ['R2_ACCOUNT_ID', ...base];
+};
+
+const getMissingEnv = () => getRequiredEnv().filter((name) => !process.env[name]);
 
 export const isR2Configured = () => getMissingEnv().length === 0;
 
@@ -30,7 +35,9 @@ const getBucket = () => {
 
 const getClient = () => {
   assertConfigured();
-  const endpoint = process.env.R2_S3_ENDPOINT || `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+  const endpoint = process.env.R2_S3_ENDPOINT
+    || process.env.R2_ENDPOINT
+    || `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
   return new S3Client({
     region: 'auto',
     endpoint,
