@@ -90,6 +90,11 @@ export const apiClient = {
             body: JSON.stringify(data),
         }),
 
+        importData: (id: string, data: { dataPoints: any[]; stats: any }) => request<any>(`/projects/${id}/import`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
         getData: (projectId: string, page: number = 1, limit?: number) => {
             const params = new URLSearchParams();
             if (page > 0) params.set('page', String(page));

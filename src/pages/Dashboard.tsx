@@ -342,19 +342,19 @@ const Dashboard = () => {
     );
 
     return (
-        <div className="min-h-screen bg-background p-8">
-            <div className="max-w-6xl mx-auto space-y-8">
+        <div className="min-h-screen bg-background px-4 py-6 sm:px-6 sm:py-8">
+            <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8">
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-center gap-3 sm:gap-4">
                         <BrandLogo className="brand-tile h-12 w-12 rounded-xl p-1.5" />
                         <div>
-                            <h1 className="text-3xl font-bold tracking-tight">Tawjeeh Annotation</h1>
+                            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Tawjeeh Annotation</h1>
                             <p className="text-muted-foreground">{t("dashboard.manageProjects")}</p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         {isManager && (
                             <Button id="tutorial-model-management" variant="outline" size="sm" onClick={() => navigate("/model-management")}>
                                 {t("nav.modelManagement")}

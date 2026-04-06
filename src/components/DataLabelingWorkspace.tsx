@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "@/components/ui/use-toast";
 import { MetadataSidebar } from "@/components/MetadataSidebar";
 import { GuidelinesSidebar } from "@/components/GuidelinesSidebar";
@@ -30,6 +31,7 @@ import { DynamicAnnotationForm } from "@/components/DynamicAnnotationForm";
 import { AnnotationQualityDashboard } from "@/components/qa/AnnotationQualityDashboard";
 import { AnnotationConfig, loadDefaultAnnotationConfig, loadAnnotationConfigFromFile, parseAnnotationConfigXML } from "@/services/xmlConfigService";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { UserMenu } from "@/components/UserMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -94,6 +96,7 @@ const DataLabelingWorkspace = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, getUserById } = useAuth();
   const annotatorMeta = currentUser ? { id: currentUser.id, name: currentUser.username } : undefined;
@@ -1553,9 +1556,10 @@ const DataLabelingWorkspace = () => {
       loadNewData(assignedData);
       setPendingHFRows(null);
 
-      // Persist newly uploaded data to backend
+      // Persist newly uploaded data to backend with a dedicated import path
+      // so large CSV uploads replace the current dataset in one transaction.
       if (projectId) {
-        await projectService.saveProgress(projectId, assignedData, annotationStats);
+        await projectService.importData(projectId, assignedData, annotationStats);
       }
 
       const uploadSource = importedRows ? `HuggingFace: ${hfImportDataset}` : `File: ${file?.name ?? 'unknown'}`;
@@ -2499,7 +2503,7 @@ const DataLabelingWorkspace = () => {
         )}
         {/* Header */}
         <div className="absolute top-0 left-0 right-0 z-10 border-b border-border bg-card px-4 py-2.5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             {/* ── Left: nav + title ── */}
             <div className="flex items-center gap-2 min-w-0">
               <Button
@@ -2520,7 +2524,7 @@ const DataLabelingWorkspace = () => {
 
             {/* ── Center: progress ── */}
             {dataPoints.length > 0 && (
-              <div id="tutorial-progress" className="hidden sm:flex items-center gap-3 mx-4">
+              <div id="tutorial-progress" className="flex items-center gap-3 min-w-0 sm:mx-4">
                 <Progress value={progress} className="w-28 h-2" />
                 <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
                   {globalCompletedCount}/{globalTotalItems} ({Math.round(progress)}%)
@@ -2529,7 +2533,7 @@ const DataLabelingWorkspace = () => {
             )}
 
             {/* ── Right: actions ── */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0 max-w-full overflow-x-auto pb-1 sm:max-w-none sm:overflow-visible sm:pb-0">
               {/* Undo / Redo */}
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2655,6 +2659,18 @@ const DataLabelingWorkspace = () => {
                 <TooltipContent>{t("workspace.startTutorial")}</TooltipContent>
               </Tooltip>
 
+              {isMobile && dataPoints.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0"
+                  onClick={() => setShowRightSidebar(true)}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  {t("workspace.actionsPanel")}
+                </Button>
+              )}
+
               <NotificationBell />
               <ThemeToggle />
               <UserMenu />
@@ -2777,7 +2793,7 @@ const DataLabelingWorkspace = () => {
                           onChange={(e) => setHfImportDataset(e.target.value)}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <Label htmlFor="hf-import-config">{t("workspace.configOptional")}</Label>
                           <Input
@@ -2906,7 +2922,7 @@ const DataLabelingWorkspace = () => {
 
                           <div>
                             <Label>{t("workspace.additionalColumns")}</Label>
-                            <div className="grid grid-cols-2 gap-2 mt-2 max-h-32 overflow-y-auto">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-32 overflow-y-auto">
                               {availableColumns.filter(col => col !== selectedContentColumn).map(col => (
                                 <div key={col} className="flex items-center space-x-2">
                                   <Checkbox
@@ -3334,7 +3350,7 @@ const DataLabelingWorkspace = () => {
                           {t("workspace.startNewTask")}
                         </Button>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <Button
                             variant="outline"
                             onClick={openExportDialog}
@@ -3365,7 +3381,7 @@ const DataLabelingWorkspace = () => {
                 </Dialog>
 
         {/* Main Content */}
-        <div className="flex-1 pt-16 p-6">
+        <div className="flex-1 px-4 pb-6 pt-28 sm:px-6 sm:pt-16 lg:px-8">
           {dataPoints.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <div className="w-full max-w-4xl space-y-6">
@@ -3460,13 +3476,13 @@ const DataLabelingWorkspace = () => {
               </div>
             </div>
           ) : (
-            <div className="flex gap-6 h-full">
+            <div className="flex h-full flex-col gap-6 lg:flex-row">
               {/* Data Display */}
               <div className="flex-1 overflow-y-auto pb-10 min-w-0">
                 <div className="space-y-6">
                   {viewMode === 'record' ? (
                     <>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col gap-4 xl:flex-row">
                       {/* Main Content */}
                       <div className="flex-1">
                         <Card className="min-h-full p-6">
@@ -3831,7 +3847,44 @@ const DataLabelingWorkspace = () => {
                       </div>
 
                       {/* Stacked sidebar column — fixed header rows, content expands below */}
-                      {(() => {
+                      {isMobile ? (
+                        <div className="space-y-4">
+                          <div className="overflow-hidden rounded-lg border border-border bg-card">
+                            <button
+                              className="flex h-10 w-full items-center gap-2 border-b border-border/50 px-3 hover:bg-muted/50 disabled:opacity-40"
+                              onClick={() => setShowGuidelinesSidebar(v => !v)}
+                              disabled={!projectId}
+                            >
+                              <Book className="w-4 h-4 shrink-0 text-purple-500" />
+                              <span className="flex-1 truncate text-start text-xs font-semibold">{t("workspace.projectGuidelines")}</span>
+                              {showGuidelinesSidebar
+                                ? <ChevronUp className="w-3 h-3 shrink-0 text-muted-foreground" />
+                                : <ChevronDown className="w-3 h-3 shrink-0 text-muted-foreground" />}
+                            </button>
+                            {showGuidelinesSidebar && (
+                              <GuidelinesSidebar project={projectAccess} />
+                            )}
+                          </div>
+
+                          {!!(currentDataPoint?.displayMetadata && Object.keys(currentDataPoint.displayMetadata).length > 0) && (
+                            <div className="overflow-hidden rounded-lg border border-border bg-card">
+                              <button
+                                className="flex h-10 w-full items-center gap-2 border-b border-border/50 px-3 hover:bg-muted/50"
+                                onClick={() => setShowMetadataSidebar(v => !v)}
+                              >
+                                <FileText className="w-4 h-4 shrink-0 text-muted-foreground" />
+                                <span className="flex-1 truncate text-start text-xs font-semibold">{t("workspace.metadata")}</span>
+                                {showMetadataSidebar
+                                  ? <ChevronUp className="w-3 h-3 shrink-0 text-muted-foreground" />
+                                  : <ChevronDown className="w-3 h-3 shrink-0 text-muted-foreground" />}
+                              </button>
+                              {showMetadataSidebar && (
+                                <MetadataSidebar metadata={currentDataPoint?.displayMetadata} />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (() => {
                         const isWide = showGuidelinesSidebar || showMetadataSidebar;
                         const hasMetadata = !!(currentDataPoint?.displayMetadata && Object.keys(currentDataPoint.displayMetadata).length > 0);
                         return (
@@ -4100,7 +4153,7 @@ const DataLabelingWorkspace = () => {
 
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">{t("workspace.layout")}</Label>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <Button
                                 size="sm"
                                 variant={listLayout === 'grid' ? "default" : "outline"}
@@ -4417,7 +4470,219 @@ const DataLabelingWorkspace = () => {
                 </div>
               </div>
 
-              {viewMode === 'record' ? (
+              {isMobile ? (
+                <Sheet open={showRightSidebar} onOpenChange={setShowRightSidebar}>
+                  <SheetContent side={isRTL ? "left" : "right"} className="w-full max-w-none overflow-y-auto sm:max-w-sm">
+                    <SheetHeader className="text-start">
+                      <SheetTitle>{viewMode === 'record' ? t("workspace.actionsPanel") : t("workspace.listOverview")}</SheetTitle>
+                      <SheetDescription>
+                        {viewMode === 'record' ? t("workspace.sessionStatistics") : t("workspace.annotationOverview")}
+                      </SheetDescription>
+                    </SheetHeader>
+
+                    {viewMode === 'record' ? (
+                      <div className="mt-6 space-y-6">
+                        <div className="space-y-2">
+                          <Button
+                            className="w-full"
+                            onClick={() => requestProcessScope('current')}
+                            disabled={!canProcessAI || isProcessing || !currentDataPoint}
+                            title={!canProcessAI ? "Requires manager or admin role" : undefined}
+                          >
+                            {isProcessing ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                {t("workspace.processing")}
+                              </>
+                            ) : (
+                              <>
+                                <Brain className="w-4 h-4 mr-2" />
+                                {t("workspace.processCurrent")}
+                              </>
+                            )}
+                          </Button>
+                          {isProcessing && processingProgress.total > 0 ? (
+                            <div className="space-y-2">
+                              <Progress
+                                value={(processingProgress.current / processingProgress.total) * 100}
+                                className="w-full h-2"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                {t("workspace.processingBatches")}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              {t("workspace.runPendingItems")}
+                            </p>
+                          )}
+                        </div>
+
+                        <Separator />
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">{t("workspace.manualActions")}</Label>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="w-full"
+                            onClick={() => handleRejectAnnotation(annotatorMeta)}
+                            disabled={!currentAssignment}
+                          >
+                            <X className="w-4 h-4 mr-2" />
+                            {t("workspace.clearReject")}
+                          </Button>
+                        </div>
+
+                        <Separator />
+
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                              <div className="text-lg font-bold text-green-600">{globalCompletedCount}</div>
+                              <div className="text-xs text-muted-foreground">{t("workspace.completed_stat")}</div>
+                            </div>
+                            <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                              <div className="text-lg font-bold text-blue-600">{globalRemainingCount}</div>
+                              <div className="text-xs text-muted-foreground">{t("workspace.remaining")}</div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                              <span className="text-xs">{t("workspace.accepted")}</span>
+                              <span className="text-xs font-medium">{annotationStats.totalAccepted}</span>
+                            </div>
+                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                              <span className="text-xs">{t("workspace.edited")}</span>
+                              <span className="text-xs font-medium">{annotationStats.totalEdited}</span>
+                            </div>
+                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                              <span className="text-xs">{t("workspace.aiProcessed")}</span>
+                              <span className="text-xs font-medium">{annotationStats.totalProcessed}</span>
+                            </div>
+                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                              <span className="text-xs">{t("workspace.sessionTime")}</span>
+                              <span className="text-xs font-medium">{formatTime(annotationStats.sessionTime)}</span>
+                            </div>
+                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                              <span className="text-xs">{t("workspace.ratePerHour")}</span>
+                              <span className="text-xs font-medium">{getAnnotationRate()}</span>
+                            </div>
+                          </div>
+
+                          {dataPoints.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-xs">
+                                <span>{t("workspace.overallProgress")}</span>
+                                <span>{Math.round(progress)}%</span>
+                              </div>
+                              <Progress value={progress} className="h-2" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-6 space-y-6">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                            <div className="text-lg font-bold text-green-600">{globalCompletedCount}</div>
+                            <div className="text-xs text-muted-foreground">{t("workspace.completed_stat")}</div>
+                          </div>
+                          <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <div className="text-lg font-bold text-blue-600">{globalRemainingCount}</div>
+                            <div className="text-xs text-muted-foreground">{t("workspace.remaining")}</div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between rounded bg-muted/30 p-2 text-xs">
+                            <span>{t("workspace.filteredItems")}</span>
+                            <span className="font-medium">{globalFilteredCount}</span>
+                          </div>
+                          <div className="flex items-center justify-between rounded bg-muted/30 p-2 text-xs">
+                            <span>{t("workspace.totalItems")}</span>
+                            <span className="font-medium">{globalTotalItems}</span>
+                          </div>
+                        </div>
+
+                        <Separator />
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">{t("workspace.batchActions")}</Label>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={startRandomPending}
+                            disabled={dataPoints.length === 0 || pendingIndices.length === 0}
+                          >
+                            <Shuffle className="w-4 h-4 mr-2" />
+                            {t("workspace.randomPending")}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={startFilteredScope}
+                            disabled={filteredNavigationIndices.length === 0}
+                          >
+                            <Play className="w-4 h-4 mr-2" />
+                            {t("workspace.startFilteredScope")}
+                          </Button>
+                          <Button
+                            className="w-full"
+                            onClick={() => requestProcessScope('all')}
+                            disabled={!canProcessAI || isProcessing || dataPoints.length === 0}
+                            title={!canProcessAI ? "Requires manager or admin role" : undefined}
+                          >
+                            {isProcessing ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                {processingProgress.total > 0
+                                  ? t("workspace.processingCount", { current: processingProgress.current, total: processingProgress.total })
+                                  : t("workspace.processing")}
+                              </>
+                            ) : (
+                              <>
+                                <Brain className="w-4 h-4 mr-2" />
+                                {t("workspace.processAllWithAI")}
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => requestProcessScope('filtered')}
+                            disabled={!canProcessAI || isProcessing || filteredDataPoints.length === 0}
+                            title={!canProcessAI ? "Requires manager or admin role" : undefined}
+                          >
+                            {isProcessing ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                {t("workspace.processing")}
+                              </>
+                            ) : (
+                              <>
+                                <Brain className="w-4 h-4 mr-2" />
+                                {t("workspace.processFilteredWithAI")}
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={openExportDialog}
+                            disabled={!canExport || filteredDataPoints.length === 0}
+                            title={!canExport ? "Requires manager or admin role" : undefined}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            {t("workspace.exportResults")}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </SheetContent>
+                </Sheet>
+              ) : viewMode === 'record' ? (
                 <div id="tutorial-annotation-form" className={`flex-shrink-0 transition-all duration-300 ${showRightSidebar ? 'w-80' : 'w-10'}`}>
                   {showRightSidebar ? (
                   <Card className="p-6 space-y-6 sticky top-6">

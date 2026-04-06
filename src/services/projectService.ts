@@ -131,6 +131,10 @@ export const projectService = {
         await apiClient.projects.update(projectId, { dataPoints, stats });
     },
 
+    importData: async (projectId: string, dataPoints: DataPoint[], stats: AnnotationStats) => {
+        await apiClient.projects.importData(projectId, { dataPoints, stats });
+    },
+
     updateDataPoint: async (projectId: string, dataId: string, updates: Partial<DataPoint>): Promise<void> => {
         await apiClient.projects.updateDataPoint(projectId, dataId, updates);
     },

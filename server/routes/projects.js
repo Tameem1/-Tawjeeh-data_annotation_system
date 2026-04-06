@@ -9,6 +9,98 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 export function registerProjectRoutes(app) {
     const db = getDatabase();
 
+    const upsertProjectStats = db.prepare(`
+      INSERT INTO project_stats (project_id, total_accepted, total_rejected, total_edited, total_processed, average_confidence, session_time)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(project_id) DO UPDATE SET
+        total_accepted = excluded.total_accepted,
+        total_rejected = excluded.total_rejected,
+        total_edited = excluded.total_edited,
+        total_processed = excluded.total_processed,
+        average_confidence = excluded.average_confidence,
+        session_time = excluded.session_time
+    `);
+
+    const upsertDataPoint = db.prepare(`
+      INSERT INTO data_points (
+        id, project_id, content, type, original_annotation, human_annotation, final_annotation,
+        ai_suggestions, ratings, status, confidence, upload_prompt, custom_field, custom_field_name,
+        custom_field_values, metadata, display_metadata, split, annotator_id, annotator_name,
+        annotated_at, is_iaa, assignments, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        content = excluded.content,
+        type = excluded.type,
+        original_annotation = excluded.original_annotation,
+        human_annotation = excluded.human_annotation,
+        final_annotation = excluded.final_annotation,
+        ai_suggestions = excluded.ai_suggestions,
+        ratings = excluded.ratings,
+        status = excluded.status,
+        confidence = excluded.confidence,
+        upload_prompt = excluded.upload_prompt,
+        custom_field = excluded.custom_field,
+        custom_field_name = excluded.custom_field_name,
+        custom_field_values = excluded.custom_field_values,
+        metadata = excluded.metadata,
+        display_metadata = excluded.display_metadata,
+        split = excluded.split,
+        annotator_id = excluded.annotator_id,
+        annotator_name = excluded.annotator_name,
+        annotated_at = excluded.annotated_at,
+        is_iaa = excluded.is_iaa,
+        assignments = excluded.assignments,
+        updated_at = excluded.updated_at
+    `);
+
+    const writeProjectDataPoints = (projectId, dataPoints, now) => {
+        for (const dp of dataPoints) {
+            upsertDataPoint.run(
+                dp.id,
+                projectId,
+                dp.content,
+                dp.type || 'text',
+                dp.originalAnnotation || null,
+                dp.humanAnnotation || null,
+                dp.finalAnnotation || null,
+                JSON.stringify(dp.aiSuggestions || {}),
+                JSON.stringify(dp.ratings || {}),
+                dp.status || 'pending',
+                dp.confidence || null,
+                dp.uploadPrompt || null,
+                dp.customField || null,
+                dp.customFieldName || null,
+                JSON.stringify(dp.customFieldValues || {}),
+                JSON.stringify(dp.metadata || {}),
+                JSON.stringify(dp.displayMetadata || {}),
+                dp.split || null,
+                dp.annotatorId || null,
+                dp.annotatorName || null,
+                dp.annotatedAt || null,
+                dp.isIAA ? 1 : 0,
+                JSON.stringify(dp.assignments || []),
+                dp.createdAt || now,
+                now
+            );
+        }
+    };
+
+    const replaceProjectDataTransaction = db.transaction((projectId, dataPoints, stats, now) => {
+        db.prepare('DELETE FROM data_points WHERE project_id = ?').run(projectId);
+        writeProjectDataPoints(projectId, dataPoints, now);
+        upsertProjectStats.run(
+            projectId,
+            stats?.totalAccepted || 0,
+            stats?.totalRejected || 0,
+            stats?.totalEdited || 0,
+            stats?.totalProcessed || 0,
+            stats?.averageConfidence || 0,
+            stats?.sessionTime || 0
+        );
+        db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId);
+    });
+
     // Get all projects (filtered by user access)
     app.get('/api/projects', (req, res) => {
         try {
@@ -442,6 +534,30 @@ export function registerProjectRoutes(app) {
         handleUpdateProject(req, res);
     });
 
+    app.post('/api/projects/:id/import', (req, res) => {
+        try {
+            const { id } = req.params;
+            const { dataPoints, stats } = req.body;
+
+            if (!Array.isArray(dataPoints)) {
+                return res.status(400).json({ error: 'dataPoints must be an array' });
+            }
+
+            const existing = db.prepare('SELECT id FROM projects WHERE id = ?').get(id);
+            if (!existing) {
+                return res.status(404).json({ error: 'Project not found' });
+            }
+
+            const now = Date.now();
+            replaceProjectDataTransaction(id, dataPoints, stats, now);
+
+            res.json({ success: true, imported: dataPoints.length, updatedAt: now });
+        } catch (error) {
+            console.error('Error importing project data:', error);
+            res.status(500).json({ error: 'Failed to import project data' });
+        }
+    });
+
     function handleUpdateProject(req, res) {
         try {
             const { id } = req.params;
@@ -499,85 +615,13 @@ export function registerProjectRoutes(app) {
                 }
             }
 
-            // Update data points if provided
-            if (dataPoints && Array.isArray(dataPoints)) {
-                const upsertDataPoint = db.prepare(`
-          INSERT INTO data_points (
-            id, project_id, content, type, original_annotation, human_annotation, final_annotation,
-            ai_suggestions, ratings, status, confidence, upload_prompt, custom_field, custom_field_name,
-            custom_field_values, metadata, display_metadata, split, annotator_id, annotator_name,
-            annotated_at, is_iaa, assignments, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            project_id = excluded.project_id,
-            content = excluded.content,
-            type = excluded.type,
-            original_annotation = excluded.original_annotation,
-            human_annotation = excluded.human_annotation,
-            final_annotation = excluded.final_annotation,
-            ai_suggestions = excluded.ai_suggestions,
-            ratings = excluded.ratings,
-            status = excluded.status,
-            confidence = excluded.confidence,
-            upload_prompt = excluded.upload_prompt,
-            custom_field = excluded.custom_field,
-            custom_field_name = excluded.custom_field_name,
-            custom_field_values = excluded.custom_field_values,
-            metadata = excluded.metadata,
-            display_metadata = excluded.display_metadata,
-            split = excluded.split,
-            annotator_id = excluded.annotator_id,
-            annotator_name = excluded.annotator_name,
-            annotated_at = excluded.annotated_at,
-            is_iaa = excluded.is_iaa,
-            assignments = excluded.assignments,
-            updated_at = excluded.updated_at
-        `);
-
-                for (const dp of dataPoints) {
-                    upsertDataPoint.run(
-                        dp.id,
-                        id,
-                        dp.content,
-                        dp.type || 'text',
-                        dp.originalAnnotation || null,
-                        dp.humanAnnotation || null,
-                        dp.finalAnnotation || null,
-                        JSON.stringify(dp.aiSuggestions || {}),
-                        JSON.stringify(dp.ratings || {}),
-                        dp.status || 'pending',
-                        dp.confidence || null,
-                        dp.uploadPrompt || null,
-                        dp.customField || null,
-                        dp.customFieldName || null,
-                        JSON.stringify(dp.customFieldValues || {}),
-                        JSON.stringify(dp.metadata || {}),
-                        JSON.stringify(dp.displayMetadata || {}),
-                        dp.split || null,
-                        dp.annotatorId || null,
-                        dp.annotatorName || null,
-                        dp.annotatedAt || null,
-                        dp.isIAA ? 1 : 0,
-                        JSON.stringify(dp.assignments || []),
-                        dp.createdAt || now,
-                        now
-                    );
-                }
+            if (Array.isArray(dataPoints)) {
+                writeProjectDataPoints(id, dataPoints, now);
             }
 
             // Update stats if provided
             if (stats) {
-                db.prepare(`
-          INSERT INTO project_stats (project_id, total_accepted, total_rejected, total_edited, total_processed, average_confidence, session_time)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(project_id) DO UPDATE SET
-            total_accepted = excluded.total_accepted,
-            total_rejected = excluded.total_rejected,
-            total_edited = excluded.total_edited,
-            total_processed = excluded.total_processed,
-            average_confidence = excluded.average_confidence,
-            session_time = excluded.session_time
-        `).run(
+                upsertProjectStats.run(
                     id,
                     stats.totalAccepted || 0,
                     stats.totalRejected || 0,
