@@ -20,7 +20,7 @@
   color: hsl(var(--card-foreground)) !important;
   border: 1px solid hsl(var(--border)) !important;
   box-shadow:
-    0 24px 48px -8px hsl(240 65% 55% / 0.16),
+    0 24px 48px -8px hsl(var(--ai-secondary) / 0.18),
     0 8px 20px -4px hsl(220 30% 5% / 0.10) !important;
   font-family: inherit !important;
   animation: tour-slide-in 0.25s cubic-bezier(0.34, 1.2, 0.64, 1) both !important;
@@ -42,7 +42,7 @@
   content: "" !important;
   display: block !important;
   height: 3px !important;
-  background: linear-gradient(90deg, hsl(240 65% 55%), hsl(270 60% 60%)) !important;
+  background: var(--gradient-ai) !important;
 }
 
 /* ---------- Title ---------- */
@@ -149,15 +149,15 @@
 
 /* ---------- Next / Done — brand gradient ---------- */
 .driver-popover-next-btn {
-  background: linear-gradient(135deg, hsl(240 65% 55%), hsl(270 60% 60%)) !important;
+  background: var(--gradient-primary) !important;
   color: #fff !important;
   border: none !important;
-  box-shadow: 0 2px 8px hsl(240 65% 55% / 0.35) !important;
+  box-shadow: 0 2px 8px hsl(var(--ai-secondary) / 0.35) !important;
 }
 
 .driver-popover-next-btn:hover {
-  background: linear-gradient(135deg, hsl(240 65% 48%), hsl(270 60% 53%)) !important;
-  box-shadow: 0 4px 14px hsl(240 65% 55% / 0.45) !important;
+  background: var(--gradient-primary) !important;
+  box-shadow: 0 4px 14px hsl(var(--ai-secondary) / 0.45) !important;
   transform: translateY(-1px) !important;
 }
 

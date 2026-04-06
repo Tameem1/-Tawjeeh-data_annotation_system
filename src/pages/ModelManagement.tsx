@@ -18,6 +18,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type RuntimeModelOption = {
   id: string;
@@ -260,9 +261,7 @@ const ModelManagement = () => {
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                <span className="text-white font-semibold">DB</span>
-              </div>
+              <BrandLogo className="brand-tile h-12 w-12 rounded-xl p-1.5" />
               <div>
                 <h1 className="text-xl font-semibold text-foreground">{t("models.accessDenied")}</h1>
                 <p className="text-sm text-muted-foreground">{t("models.managerRoleRequired")}</p>

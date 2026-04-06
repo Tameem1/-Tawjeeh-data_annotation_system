@@ -35,6 +35,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useTutorial, hasSeenTutorial } from "@/components/Tutorial/useTutorial";
 import { getWorkspaceSteps } from "@/components/Tutorial/tourSteps";
+import { BrandLogo } from "@/components/BrandLogo";
 import {
   Upload,
   Settings,
@@ -494,9 +495,7 @@ const DataLabelingWorkspace = () => {
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                <Target className="w-5 h-5 text-white" />
-              </div>
+              <BrandLogo className="brand-tile h-10 w-10 rounded-xl p-1.5" />
               <div>
                 <h1 className="text-xl font-semibold text-foreground">{t("workspace.accessDenied")}</h1>
                 <p className="text-sm text-muted-foreground">{t("workspace.notAssigned")}</p>
@@ -2510,9 +2509,7 @@ const DataLabelingWorkspace = () => {
                 {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
               </Button>
               <div className="h-5 w-px bg-border mx-0.5 shrink-0" />
-              <div className="w-7 h-7 rounded-md bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
-                <Target className="w-3.5 h-3.5 text-white" />
-              </div>
+              <BrandLogo className="brand-tile h-8 w-8 rounded-lg p-1 shrink-0" />
               <div className="min-w-0">
                 <h1 className="text-sm font-semibold text-foreground truncate">{projectName || 'Tawjeeh Annotation'}</h1>
                 <p className="text-xs text-muted-foreground">
@@ -2690,7 +2687,7 @@ const DataLabelingWorkspace = () => {
                     <Button
                       variant="default"
                       size="icon"
-                      className="h-8 w-8 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                      className="h-8 w-8 bg-brand-gradient text-primary-foreground hover:opacity-95"
                       onClick={handleStartNewTask}
                       disabled={!canUpload}
                     >
@@ -3328,7 +3325,7 @@ const DataLabelingWorkspace = () => {
 
                       <div className="space-y-3 pt-4">
                         <Button
-                          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                          className="w-full bg-brand-gradient text-primary-foreground hover:opacity-95"
                           onClick={handleStartNewTask}
                           disabled={!canUpload}
                           title={!canUpload ? "Requires manager or admin role" : undefined}

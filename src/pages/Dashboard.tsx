@@ -27,6 +27,7 @@ import { useTutorial, hasSeenTutorial } from "@/components/Tutorial/useTutorial"
 import { getDashboardSteps, type UserRole } from "@/components/Tutorial/tourSteps";
 import { LanguageSwitcherInline } from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BrandLogo } from "@/components/BrandLogo";
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -290,9 +291,7 @@ const Dashboard = () => {
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
             <Card className="w-full max-w-sm">
                 <CardHeader className="text-center">
-                    <div className="mx-auto w-12 h-12 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center mb-2">
-                        <img src="/favicon.svg" alt="Tawjeeh Annotation logo" className="w-6 h-6 invert brightness-0" />
-                    </div>
+                    <BrandLogo className="mx-auto mb-3 h-20 w-44" />
                     <CardTitle className="text-2xl">Tawjeeh Annotation</CardTitle>
                     <CardDescription>{t("auth.loginSubtitle")}</CardDescription>
                 </CardHeader>
@@ -348,9 +347,7 @@ const Dashboard = () => {
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                            <img src="/favicon.svg" alt="Tawjeeh Annotation logo" className="w-6 h-6 invert brightness-0" />
-                        </div>
+                        <BrandLogo className="brand-tile h-12 w-12 rounded-xl p-1.5" />
                         <div>
                             <h1 className="text-3xl font-bold tracking-tight">Tawjeeh Annotation</h1>
                             <p className="text-muted-foreground">{t("dashboard.manageProjects")}</p>
@@ -611,7 +608,7 @@ const Dashboard = () => {
                         {isAdmin && (
                             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                                 <DialogTrigger asChild>
-                                    <Button id="tutorial-new-project" className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
+                                    <Button id="tutorial-new-project" className="bg-brand-gradient text-primary-foreground hover:opacity-95">
                                         <Plus className="w-4 h-4 mr-2" />
                                         {t("dashboard.newProject")}
                                     </Button>

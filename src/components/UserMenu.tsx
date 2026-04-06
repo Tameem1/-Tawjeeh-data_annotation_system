@@ -69,7 +69,7 @@ export const UserMenu = () => {
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
               <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full p-0">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-[11px] font-semibold text-white">
+                <span className="bg-brand-gradient flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold text-white">
                   {initials}
                 </span>
               </Button>

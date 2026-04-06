@@ -9,8 +9,13 @@ const __dirname = path.dirname(__filename);
 
 // Database file location — defaults to ./data/ relative to where the process is started,
 // so global npm installs store data in the user's working directory, not inside node_modules.
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'databayt.sqlite');
+function getDataDir() {
+  return process.env.DATA_DIR || path.join(process.cwd(), 'data');
+}
+
+function getDbPath() {
+  return path.join(getDataDir(), 'databayt.sqlite');
+}
 
 let db = null;
 
@@ -20,13 +25,16 @@ let db = null;
 export function initDatabase() {
   if (db) return db;
 
+  const dataDir = getDataDir();
+  const dbPath = getDbPath();
+
   // Ensure data directory exists
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  console.log(`Initializing database at: ${DB_PATH}`);
-  db = new Database(DB_PATH);
+  console.log(`Initializing database at: ${dbPath}`);
+  db = new Database(dbPath);
 
   // Enable WAL mode for better concurrent access
   db.pragma('journal_mode = WAL');

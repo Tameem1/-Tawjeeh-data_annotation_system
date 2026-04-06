@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { BrandLogo } from "@/components/BrandLogo";
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -213,9 +214,7 @@ const AnnotationWorkspace = () => {
         <div className="border-b border-border bg-card p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-                <Target className="w-4 h-4 text-white" />
-              </div>
+              <BrandLogo className="brand-tile h-9 w-9 rounded-lg p-1.5" />
               <div>
                 <h1 className="text-xl font-semibold text-foreground">Tawjeeh Annotation</h1>
                 <p className="text-sm text-muted-foreground">Translation {currentSample} of {totalSamples}</p>
