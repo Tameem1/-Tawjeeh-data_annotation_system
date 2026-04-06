@@ -34,11 +34,14 @@ async function request<T>(
     options: RequestInit = {}
 ): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
-
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
         ...(options.headers as Record<string, string>),
     };
+
+    if (!isFormData && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+    }
 
     // Attach JWT Bearer token if available
     if (_authToken) {
@@ -93,6 +96,11 @@ export const apiClient = {
         importData: (id: string, data: { dataPoints: any[]; stats: any }) => request<any>(`/projects/${id}/import`, {
             method: 'POST',
             body: JSON.stringify(data),
+        }),
+
+        importFile: (id: string, data: FormData) => request<any>(`/projects/${id}/import-file`, {
+            method: 'POST',
+            body: data,
         }),
 
         getData: (projectId: string, page: number = 1, limit?: number) => {

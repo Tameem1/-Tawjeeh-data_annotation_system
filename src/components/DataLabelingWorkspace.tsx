@@ -138,7 +138,8 @@ const DataLabelingWorkspace = () => {
     redo,
     canUndo,
     canRedo,
-    loadNewData
+    loadNewData,
+    reloadProjectData
   } = useDataLabeling(projectId);
 
   // Local UI State
@@ -1337,7 +1338,6 @@ const DataLabelingWorkspace = () => {
     try {
       const lastDotIndex = file?.name.lastIndexOf('.') ?? -1;
       const extension = lastDotIndex >= 0 ? file!.name.slice(lastDotIndex).toLowerCase() : '';
-      const text = importedRows || audioFileExtensions.includes(extension) ? '' : await file!.text();
       let parsedData: DataPoint[] = [];
 
       if (file && audioFileExtensions.includes(extension)) {
@@ -1404,160 +1404,33 @@ const DataLabelingWorkspace = () => {
           annotatedAt: Date.now(),
         } as DataPoint;
       });
-      } else if (file && extension === '.json') {
-        let jsonData: unknown;
-        try {
-          jsonData = JSON.parse(text);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'Invalid JSON syntax.';
-          throw new Error(`Invalid JSON syntax. ${message}`);
+      } else if (file && ['.json', '.csv', '.txt'].includes(extension)) {
+        if (!projectId) {
+          throw new Error('Project context is missing.');
         }
-        if (Array.isArray(jsonData)) {
-          // Detect labels from first item
-          if (jsonData.length > 0) {
-            const firstItem = jsonData[0];
-            if (firstItem.label) setAnnotationLabel('Label');
-            else if (firstItem.annotation) setAnnotationLabel('Annotation');
 
-            if (firstItem.prompt) setPromptLabel('Prompt');
-          }
-
-          parsedData = jsonData.map((item: any) => {
-            const metadata = Object.entries(item).reduce((acc, [key, value]) => {
-              acc[key] = String(value);
-              return acc;
-            }, {} as Record<string, string>);
-            const content = typeof item === 'string' ? item : item.text || item.content || JSON.stringify(item);
-            return {
-            id: crypto.randomUUID(),
-            content,
-            type: inferDataPointType(content, item.type),
-            originalAnnotation: item.annotation || item.label || '',
-            aiSuggestions: {},
-            ratings: {},
-            status: 'pending' as const,
-            uploadPrompt: prompt || item.prompt, // Use item prompt if available
-            customField: '',
-            customFieldName: customField,
-            metadata,
-            displayMetadata: toDisplayMetadataRecord(metadata)
-          };
+        const result = await projectService.importFile(projectId, file, {
+          prompt,
+          customFieldName: customField,
+          selectedContentColumn,
+          selectedDisplayColumns,
+          importMode: 'replace'
         });
-        } else {
-          throw new Error('JSON file must contain an array of data points');
-        }
-      } else if (file && extension === '.csv') {
-        const rows = parseCsvText(text);
-        if (rows.length === 0) {
-          throw new Error('CSV file is empty.');
-        }
 
-        const rawHeader = rows[0];
-        if (rawHeader.length === 0) {
-          throw new Error('CSV header row is missing.');
-        }
-        const header = normalizeCsvHeader(rawHeader);
+        setPendingHFRows(null);
+        await reloadProjectData();
 
-        // Use user-selected content column, or fallback to auto-detect
-        let contentIndex = selectedContentColumn
-          ? header.findIndex(h => h === selectedContentColumn)
-          : header.findIndex(h => h.toLowerCase().includes('text') || h.toLowerCase().includes('content'));
-
-        if (contentIndex < 0) {
-          const fallbackIndex = header.findIndex(h => h.toLowerCase() !== 'id');
-          if (fallbackIndex >= 0) {
-            contentIndex = fallbackIndex;
-          } else {
-            const required = selectedContentColumn
-              ? `"${selectedContentColumn}"`
-              : 'a "text" or "content" column';
-            throw new Error(`CSV file is missing ${required}.`);
-          }
-        }
-
-        const annotationIndex = header.findIndex(h => h.toLowerCase().includes('label') || h.toLowerCase().includes('annotation'));
-
-        // Set dynamic labels
-        if (annotationIndex >= 0) setAnnotationLabel(header[annotationIndex]);
-        // For CSV, we don't usually have a prompt column, but if we did:
-        const promptIndex = header.findIndex(h => h.toLowerCase().includes('prompt'));
-        if (promptIndex >= 0) setPromptLabel(header[promptIndex]);
-
-        parsedData = rows.slice(1).map((rawValues, index) => {
-          const values = rawValues.map((value) => value ?? '');
-
-          if (values.length > header.length) {
-            // Try to recover if trailing empty commas
-            const meaningfulValues = values.filter(v => v !== '');
-            if (meaningfulValues.length <= header.length) {
-              // Pad with empty strings if needed or just use as is
-            } else {
-              console.warn(`Row ${index + 2} has more columns than header`, values);
-            }
-          }
-
-          // Pad if missing columns
-          while (values.length < header.length) {
-            values.push('');
-          }
-
-          if (!values[contentIndex] && values[contentIndex] !== '') {
-            // Allow empty content? Maybe not. But let's be lenient for now or fallback.
-            // Actually if content is critical we should probably check.
-            // But let's just use what we have.
-          }
-
-          // Create metadata object
-          const metadata: Record<string, string> = {};
-          header.forEach((h, i) => {
-            if (values[i] !== undefined) {
-              metadata[h] = values[i];
-            }
-          });
-
-          const content = contentIndex >= 0 ? values[contentIndex] : (values[0] || '');
-          return {
-            id: crypto.randomUUID(),
-            content,
-            type: inferDataPointType(content, metadata.type),
-            originalAnnotation: annotationIndex >= 0 ? values[annotationIndex] : '',
-            aiSuggestions: {},
-            ratings: {},
-            status: 'pending' as const,
-            uploadPrompt: prompt,
-            customField: '',
-            customFieldName: customField,
-            metadata,
-            displayMetadata: toDisplayMetadataRecord(metadata, header[contentIndex]),
-            customFieldValues: {},
-            isIAA: false, // Default, will be set by applyAssignmentsToDataPoints
-            annotatedAt: Date.now(), // timestamp for upload
-          } as DataPoint;
-        }).filter(Boolean) as DataPoint[];
+        const uploadSource = `File: ${file.name}`;
+        await logProjectAction('upload', `${uploadSource}, Items: ${result.imported}`);
+        return;
       } else {
-        // Plain text - each line is a data point
-        const lines = text.split('\n').filter(line => line.trim());
-        if (lines.length === 0) {
-          throw new Error('TXT file is empty.');
-        }
-        parsedData = lines.map((line, index) => ({
-          id: crypto.randomUUID(),
-          content: line.trim(),
-          status: 'pending' as const,
-          aiSuggestions: {},
-          ratings: {},
-          uploadPrompt: prompt,
-          customField: '',
-          customFieldName: customField
-        }));
+        throw new Error('Unsupported file upload path.');
       }
 
       const assignedData = applyAssignmentsToDataPoints(parsedData);
       loadNewData(assignedData);
       setPendingHFRows(null);
 
-      // Persist newly uploaded data to backend with a dedicated import path
-      // so large CSV uploads replace the current dataset in one transaction.
       if (projectId) {
         await projectService.importData(projectId, assignedData, annotationStats);
       }

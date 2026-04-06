@@ -135,6 +135,24 @@ export const projectService = {
         await apiClient.projects.importData(projectId, { dataPoints, stats });
     },
 
+    importFile: async (projectId: string, file: File, options: {
+        prompt?: string;
+        customFieldName?: string;
+        selectedContentColumn?: string;
+        selectedDisplayColumns?: string[];
+        importMode?: 'replace';
+    }) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('prompt', options.prompt ?? '');
+        formData.append('customFieldName', options.customFieldName ?? '');
+        formData.append('selectedContentColumn', options.selectedContentColumn ?? '');
+        formData.append('selectedDisplayColumns', JSON.stringify(options.selectedDisplayColumns ?? []));
+        formData.append('importMode', options.importMode ?? 'replace');
+
+        return await apiClient.projects.importFile(projectId, formData);
+    },
+
     updateDataPoint: async (projectId: string, dataId: string, updates: Partial<DataPoint>): Promise<void> => {
         await apiClient.projects.updateDataPoint(projectId, dataId, updates);
     },

@@ -1,13 +1,17 @@
 import { getDatabase } from '../services/database.js';
 import crypto from 'crypto';
+import { readFile } from 'fs/promises';
+import formidable from 'formidable';
 import { createNotifications } from '../services/notificationService.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { getImportMaxFileSizeBytes, parseImportedFile } from '../services/projectImport.js';
 
 /**
  * Projects API routes
  */
 export function registerProjectRoutes(app) {
     const db = getDatabase();
+    const importChunkSize = 500;
 
     const upsertProjectStats = db.prepare(`
       INSERT INTO project_stats (project_id, total_accepted, total_rejected, total_edited, total_processed, average_confidence, session_time)
@@ -55,34 +59,37 @@ export function registerProjectRoutes(app) {
     `);
 
     const writeProjectDataPoints = (projectId, dataPoints, now) => {
-        for (const dp of dataPoints) {
-            upsertDataPoint.run(
-                dp.id,
-                projectId,
-                dp.content,
-                dp.type || 'text',
-                dp.originalAnnotation || null,
-                dp.humanAnnotation || null,
-                dp.finalAnnotation || null,
-                JSON.stringify(dp.aiSuggestions || {}),
-                JSON.stringify(dp.ratings || {}),
-                dp.status || 'pending',
-                dp.confidence || null,
-                dp.uploadPrompt || null,
-                dp.customField || null,
-                dp.customFieldName || null,
-                JSON.stringify(dp.customFieldValues || {}),
-                JSON.stringify(dp.metadata || {}),
-                JSON.stringify(dp.displayMetadata || {}),
-                dp.split || null,
-                dp.annotatorId || null,
-                dp.annotatorName || null,
-                dp.annotatedAt || null,
-                dp.isIAA ? 1 : 0,
-                JSON.stringify(dp.assignments || []),
-                dp.createdAt || now,
-                now
-            );
+        for (let i = 0; i < dataPoints.length; i += importChunkSize) {
+            const chunk = dataPoints.slice(i, i + importChunkSize);
+            for (const dp of chunk) {
+                upsertDataPoint.run(
+                    dp.id,
+                    projectId,
+                    dp.content,
+                    dp.type || 'text',
+                    dp.originalAnnotation || null,
+                    dp.humanAnnotation || null,
+                    dp.finalAnnotation || null,
+                    JSON.stringify(dp.aiSuggestions || {}),
+                    JSON.stringify(dp.ratings || {}),
+                    dp.status || 'pending',
+                    dp.confidence || null,
+                    dp.uploadPrompt || null,
+                    dp.customField || null,
+                    dp.customFieldName || null,
+                    JSON.stringify(dp.customFieldValues || {}),
+                    JSON.stringify(dp.metadata || {}),
+                    JSON.stringify(dp.displayMetadata || {}),
+                    dp.split || null,
+                    dp.annotatorId || null,
+                    dp.annotatorName || null,
+                    dp.annotatedAt || null,
+                    dp.isIAA ? 1 : 0,
+                    JSON.stringify(dp.assignments || []),
+                    dp.createdAt || now,
+                    now
+                );
+            }
         }
     };
 
@@ -100,6 +107,61 @@ export function registerProjectRoutes(app) {
         );
         db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId);
     });
+
+    const getProjectAccess = (projectId, user) => {
+        const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+        if (!project) {
+            return { project: null, error: { status: 404, body: { error: 'Project not found' } } };
+        }
+
+        if (!user) {
+            return { project: null, error: { status: 401, body: { error: 'Authentication required' } } };
+        }
+
+        if (!user.roles?.includes('admin')) {
+            const isManager = project.manager_id === user.id;
+            const isAnnotator = db.prepare(
+                'SELECT 1 FROM project_annotators WHERE project_id = ? AND user_id = ?'
+            ).get(projectId, user.id);
+
+            if (!isManager && !isAnnotator) {
+                return { project: null, error: { status: 403, body: { error: 'Access denied' } } };
+            }
+        }
+
+        return { project, error: null };
+    };
+
+    const parseMultipartRequest = async (req) => {
+        const form = formidable({
+            multiples: false,
+            allowEmptyFiles: false,
+            maxFiles: 1,
+            maxFileSize: getImportMaxFileSizeBytes()
+        });
+
+        return new Promise((resolve, reject) => {
+            form.parse(req, (err, fields, files) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                resolve({ fields, files });
+            });
+        });
+    };
+
+    const fieldValue = (value) => Array.isArray(value) ? value[0] : value;
+
+    const parseDisplayColumns = (rawValue) => {
+        if (!rawValue) return [];
+        try {
+            const parsed = JSON.parse(rawValue);
+            return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [];
+        } catch {
+            return [];
+        }
+    };
 
     // Get all projects (filtered by user access)
     app.get('/api/projects', (req, res) => {
@@ -532,6 +594,87 @@ export function registerProjectRoutes(app) {
 
     app.patch('/api/projects/:id', (req, res) => {
         handleUpdateProject(req, res);
+    });
+
+    app.post('/api/projects/:id/import-file', requireAuth, async (req, res) => {
+        const { id } = req.params;
+        const startedAt = Date.now();
+
+        try {
+            const { project, error } = getProjectAccess(id, req.user);
+            if (error) {
+                return res.status(error.status).json(error.body);
+            }
+
+            req.once('aborted', () => {
+                console.error(`[import-file] request aborted project=${id}`);
+            });
+
+            const { fields, files } = await parseMultipartRequest(req);
+            const upload = Array.isArray(files.file) ? files.file[0] : files.file;
+            if (!upload) {
+                return res.status(400).json({ error: 'A file upload is required.' });
+            }
+
+            const importMode = fieldValue(fields.importMode) || 'replace';
+            if (importMode !== 'replace') {
+                return res.status(400).json({ error: 'Only replace import mode is supported.' });
+            }
+
+            const originalFilename = upload.originalFilename || upload.newFilename || 'upload';
+            const prompt = fieldValue(fields.prompt) || '';
+            const customFieldName = fieldValue(fields.customFieldName) || '';
+            const selectedContentColumn = fieldValue(fields.selectedContentColumn) || '';
+            const selectedDisplayColumns = parseDisplayColumns(fieldValue(fields.selectedDisplayColumns));
+
+            console.log(`[import-file] start project=${id} file=${originalFilename} bytes=${upload.size}`);
+
+            const buffer = await readFile(upload.filepath);
+            const iaaConfig = project.iaa_config ? JSON.parse(project.iaa_config) : null;
+            const { dataPoints, stats } = parseImportedFile({
+                originalFilename,
+                buffer,
+                prompt,
+                customFieldName,
+                selectedContentColumn,
+                selectedDisplayColumns,
+                projectId: id,
+                iaaConfig
+            });
+
+            const now = Date.now();
+            replaceProjectDataTransaction(id, dataPoints, stats, now);
+
+            console.log(
+                `[import-file] success project=${id} file=${originalFilename} imported=${dataPoints.length} elapsed_ms=${Date.now() - startedAt}`
+            );
+
+            return res.json({ success: true, imported: dataPoints.length, updatedAt: now });
+        } catch (error) {
+            if (error?.code === 1016 || error?.httpCode === 413) {
+                console.error(`[import-file] too-large project=${id} message=${error.message}`);
+                return res.status(413).json({ error: 'Uploaded file exceeds the maximum allowed size.' });
+            }
+
+            if (error?.code === 'ERR_FORMIDABLE_TOO_MANY_FILES') {
+                return res.status(400).json({ error: 'Only one file can be uploaded at a time.' });
+            }
+
+            if (error?.message && (
+                error.message.includes('Unsupported file type')
+                || error.message.includes('file is empty')
+                || error.message.includes('JSON file')
+                || error.message.includes('CSV file')
+                || error.message.includes('TXT file')
+                || error.message.includes('Invalid JSON syntax')
+            )) {
+                console.error(`[import-file] validation project=${id} message=${error.message}`);
+                return res.status(400).json({ error: error.message });
+            }
+
+            console.error(`[import-file] failure project=${id}`, error);
+            return res.status(500).json({ error: 'Failed to import project file' });
+        }
     });
 
     app.post('/api/projects/:id/import', (req, res) => {

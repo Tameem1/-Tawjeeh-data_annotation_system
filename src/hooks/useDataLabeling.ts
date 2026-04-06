@@ -80,55 +80,53 @@ export const useDataLabeling = (projectId?: string) => {
     const [tempAnnotation, setTempAnnotation] = useState('');
     const [projectNotFound, setProjectNotFound] = useState(false);
 
-    // Load project data
-    useEffect(() => {
-        const loadProject = async () => {
-            if (projectId) {
-                setIsLoading(true);
-                try {
-                    // 1. Get Project Metadata (fast)
-                    const project = await projectService.getById(projectId);
-                    if (project) {
-                        setProjectName(project.name);
-                        setAnnotationStats(project.stats);
-                    } else {
-                        setProjectNotFound(true);
-                        return;
-                    }
+    const reloadProjectData = useCallback(async () => {
+        if (!projectId) return;
 
-                    // 2. Get Data Points for current page
-                    setIsLoadingData(true);
-                    const { dataPoints: loadedData, pagination, statusCounts: loadedStatusCounts } = await projectService.getData(projectId, page);
+        setIsLoading(true);
+        try {
+            const project = await projectService.getById(projectId);
+            if (project) {
+                setProjectName(project.name);
+                setAnnotationStats(project.stats);
+            } else {
+                setProjectNotFound(true);
+                return;
+            }
 
-                    if (loadedData) {
-                        // Reset undo history when loading new project or page
-                        resetWorkspaceState({
-                            dataPoints: loadedData,
-                            currentIndex: 0
-                        });
-                        const globalTotal = pagination.total || 0;
-                        setTotalItems(globalTotal);
-                        setStatusCounts(loadedStatusCounts || {
-                            ...DEFAULT_STATUS_COUNTS,
-                            total: globalTotal,
-                            remaining: globalTotal
-                        });
+            setIsLoadingData(true);
+            const { dataPoints: loadedData, pagination, statusCounts: loadedStatusCounts } = await projectService.getData(projectId, page);
 
-                        if (loadedData.length > 0 && loadedData[0].customFieldName) {
-                            setCustomFieldName(loadedData[0].customFieldName);
-                        }
-                    }
-                } catch (error) {
-                    console.error("Failed to load project:", error);
-                    setProjectNotFound(true);
-                } finally {
-                    setIsLoading(false);
-                    setIsLoadingData(false);
+            if (loadedData) {
+                resetWorkspaceState({
+                    dataPoints: loadedData,
+                    currentIndex: 0
+                });
+                const globalTotal = pagination.total || 0;
+                setTotalItems(globalTotal);
+                setStatusCounts(loadedStatusCounts || {
+                    ...DEFAULT_STATUS_COUNTS,
+                    total: globalTotal,
+                    remaining: globalTotal
+                });
+
+                if (loadedData.length > 0 && loadedData[0].customFieldName) {
+                    setCustomFieldName(loadedData[0].customFieldName);
                 }
             }
-        };
-        loadProject();
-    }, [projectId, page, resetWorkspaceState]);
+        } catch (error) {
+            console.error("Failed to load project:", error);
+            setProjectNotFound(true);
+        } finally {
+            setIsLoading(false);
+            setIsLoadingData(false);
+        }
+    }, [page, projectId, resetWorkspaceState]);
+
+    // Load project data
+    useEffect(() => {
+        reloadProjectData();
+    }, [reloadProjectData]);
 
     // Save progress - REMOVED auto-save effect
     // We now save individual data points as they change
@@ -550,6 +548,7 @@ export const useDataLabeling = (projectId?: string) => {
         redo,
         canUndo,
         canRedo,
+        reloadProjectData,
 
         // Computed
         currentDataPoint,
