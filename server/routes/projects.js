@@ -4,7 +4,9 @@ import { readFile } from 'fs/promises';
 import formidable from 'formidable';
 import { createNotifications } from '../services/notificationService.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { createImportJob, getImportJob } from '../services/importJobService.js';
 import { getImportMaxFileSizeBytes, parseImportedFile } from '../services/projectImport.js';
+import { createImportObjectKey, createPresignedImportUpload, getR2UploadLimits, headImportObject, isR2Configured } from '../services/r2Service.js';
 
 /**
  * Projects API routes
@@ -161,6 +163,20 @@ export function registerProjectRoutes(app) {
         } catch {
             return [];
         }
+    };
+
+    const getFileExtension = (fileName = '') => {
+        const lastDotIndex = fileName.lastIndexOf('.');
+        return lastDotIndex >= 0 ? fileName.slice(lastDotIndex).toLowerCase() : '';
+    };
+
+    const getProjectManageAccess = (projectId, user) => {
+        const { project, error } = getProjectAccess(projectId, user);
+        if (error) return { project: null, error };
+        if (!user.roles?.includes('admin') && project.manager_id !== user.id) {
+            return { project: null, error: { status: 403, body: { error: 'Only the project manager or an admin can import files.' } } };
+        }
+        return { project, error: null };
     };
 
     // Get all projects (filtered by user access)
@@ -594,6 +610,158 @@ export function registerProjectRoutes(app) {
 
     app.patch('/api/projects/:id', (req, res) => {
         handleUpdateProject(req, res);
+    });
+
+    app.post('/api/projects/:id/import-uploads', requireAuth, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { fileName, fileType, fileSize } = req.body || {};
+            const { error } = getProjectManageAccess(id, req.user);
+            if (error) {
+                return res.status(error.status).json(error.body);
+            }
+
+            if (!isR2Configured()) {
+                return res.status(500).json({ error: 'R2 storage is not configured.' });
+            }
+
+            const normalizedFileSize = Number(fileSize);
+            if (!fileName || !Number.isFinite(normalizedFileSize) || normalizedFileSize <= 0) {
+                return res.status(400).json({ error: 'fileName and fileSize are required.' });
+            }
+
+            const fileExtension = getFileExtension(fileName);
+            if (!['.csv', '.json', '.txt'].includes(fileExtension)) {
+                return res.status(400).json({ error: `Unsupported file type "${fileExtension || 'unknown'}". Please upload a JSON, CSV, or TXT file.` });
+            }
+
+            const limits = getR2UploadLimits();
+            if (normalizedFileSize > limits.maxFileSizeBytes) {
+                return res.status(413).json({ error: 'Uploaded file exceeds the maximum allowed size.' });
+            }
+
+            const objectKey = createImportObjectKey({
+                projectId: id,
+                fileName,
+                userId: req.user.id
+            });
+            const presigned = await createPresignedImportUpload({
+                objectKey,
+                fileType: typeof fileType === 'string' && fileType ? fileType : 'application/octet-stream'
+            });
+
+            return res.json({
+                uploadUrl: presigned.uploadUrl,
+                objectKey,
+                expiresAt: presigned.expiresAt,
+                maxFileSizeBytes: presigned.maxFileSizeBytes
+            });
+        } catch (error) {
+            console.error('[import-uploads] failed', error);
+            return res.status(500).json({ error: 'Failed to initialize import upload.' });
+        }
+    });
+
+    app.post('/api/projects/:id/import-jobs', requireAuth, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const {
+                objectKey,
+                fileName,
+                fileType,
+                selectedContentColumn = '',
+                selectedDisplayColumns = [],
+                prompt = '',
+                customFieldName = '',
+                importMode = 'replace'
+            } = req.body || {};
+
+            const { error } = getProjectManageAccess(id, req.user);
+            if (error) {
+                return res.status(error.status).json(error.body);
+            }
+
+            if (!isR2Configured()) {
+                return res.status(500).json({ error: 'R2 storage is not configured.' });
+            }
+
+            if (!objectKey || !fileName || importMode !== 'replace') {
+                return res.status(400).json({ error: 'objectKey, fileName, and importMode="replace" are required.' });
+            }
+
+            const normalizedDisplayColumns = Array.isArray(selectedDisplayColumns)
+                ? selectedDisplayColumns.filter((value) => typeof value === 'string')
+                : [];
+
+            const extension = getFileExtension(fileName);
+            if (!['.csv', '.json', '.txt'].includes(extension)) {
+                return res.status(400).json({ error: `Unsupported file type "${extension || 'unknown'}". Please upload a JSON, CSV, or TXT file.` });
+            }
+
+            const objectHead = await headImportObject(objectKey);
+            const objectSize = Number(objectHead.ContentLength || 0);
+            const limits = getR2UploadLimits();
+            if (objectSize <= 0) {
+                return res.status(400).json({ error: 'Uploaded object is empty or unavailable.' });
+            }
+            if (objectSize > limits.maxFileSizeBytes) {
+                return res.status(413).json({ error: 'Uploaded file exceeds the maximum allowed size.' });
+            }
+
+            const job = createImportJob({
+                projectId: id,
+                createdBy: req.user.id,
+                objectKey,
+                fileName,
+                fileType: extension,
+                fileSize: objectSize,
+                options: {
+                    prompt,
+                    customFieldName,
+                    selectedContentColumn,
+                    selectedDisplayColumns: normalizedDisplayColumns,
+                    importMode,
+                    mimeType: typeof fileType === 'string' ? fileType : ''
+                }
+            });
+
+            console.log(`[import-job] queued jobId=${job.id} project=${id} file=${fileName} objectKey=${objectKey}`);
+            return res.status(201).json({ jobId: job.id, status: job.status });
+        } catch (error) {
+            console.error('[import-jobs] failed', error);
+            return res.status(500).json({ error: 'Failed to create import job.' });
+        }
+    });
+
+    app.get('/api/import-jobs/:jobId', requireAuth, (req, res) => {
+        try {
+            const job = getImportJob(req.params.jobId);
+            if (!job) {
+                return res.status(404).json({ error: 'Import job not found.' });
+            }
+
+            const { error } = getProjectAccess(job.projectId, req.user);
+            if (error) {
+                return res.status(error.status).json(error.body);
+            }
+
+            return res.json({
+                id: job.id,
+                projectId: job.projectId,
+                status: job.status,
+                fileName: job.fileName,
+                fileSize: job.fileSize,
+                rowsProcessed: job.rowsProcessed,
+                rowsImported: job.rowsImported,
+                errorMessage: job.errorMessage,
+                createdAt: job.createdAt,
+                startedAt: job.startedAt,
+                finishedAt: job.finishedAt
+            });
+        } catch (error) {
+            console.error('[import-job-status] failed', error);
+            return res.status(500).json({ error: 'Failed to fetch import job.' });
+        }
     });
 
     app.post('/api/projects/:id/import-file', requireAuth, async (req, res) => {

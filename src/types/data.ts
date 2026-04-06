@@ -116,6 +116,20 @@ export interface ProjectDataStatusCounts {
     rejected: number;
 }
 
+export interface ImportJobStatus {
+    id: string;
+    projectId: string;
+    status: 'queued' | 'processing' | 'completed' | 'failed';
+    fileName: string;
+    fileSize: number;
+    rowsProcessed: number;
+    rowsImported: number;
+    errorMessage?: string | null;
+    createdAt: number;
+    startedAt?: number | null;
+    finishedAt?: number | null;
+}
+
 export interface Project {
     id: string;
     name: string;

@@ -1,4 +1,4 @@
-import { Project, DataPoint, AnnotationStats, ProjectSnapshot, ProjectAuditEntry, ProjectIAAConfig, ProjectDataStatusCounts, DataPointComment } from "@/types/data";
+import { Project, DataPoint, AnnotationStats, ProjectSnapshot, ProjectAuditEntry, ProjectIAAConfig, ProjectDataStatusCounts, DataPointComment, ImportJobStatus } from "@/types/data";
 import { apiClient } from "./apiClient";
 
 export const projectService = {
@@ -151,6 +151,31 @@ export const projectService = {
         formData.append('importMode', options.importMode ?? 'replace');
 
         return await apiClient.projects.importFile(projectId, formData);
+    },
+
+    initImportUpload: async (projectId: string, file: File) => {
+        return await apiClient.projects.initImportUpload(projectId, {
+            fileName: file.name,
+            fileType: file.type || 'application/octet-stream',
+            fileSize: file.size
+        });
+    },
+
+    createImportJob: async (projectId: string, data: {
+        objectKey: string;
+        fileName: string;
+        fileType: string;
+        selectedContentColumn?: string;
+        selectedDisplayColumns?: string[];
+        prompt?: string;
+        customFieldName?: string;
+        importMode?: 'replace';
+    }) => {
+        return await apiClient.projects.createImportJob(projectId, data);
+    },
+
+    getImportJob: async (jobId: string): Promise<ImportJobStatus> => {
+        return await apiClient.projects.getImportJob(jobId);
     },
 
     updateDataPoint: async (projectId: string, dataId: string, updates: Partial<DataPoint>): Promise<void> => {

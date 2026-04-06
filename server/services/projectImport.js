@@ -113,6 +113,18 @@ const toDisplayMetadataRecord = (metadata, selectedDisplayColumns = [], contentC
   return displayMetadata;
 };
 
+export const createImportOptions = ({
+  prompt = '',
+  customFieldName = '',
+  selectedContentColumn = '',
+  selectedDisplayColumns = []
+} = {}) => ({
+  prompt,
+  customFieldName,
+  selectedContentColumn,
+  selectedDisplayColumns
+});
+
 const hashStringToSeed = (value) => {
   let hash = 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -167,6 +179,28 @@ const applyAssignmentsToDataPoints = (points, projectId, iaaConfig) => {
     };
   });
 };
+
+export const createIaaSelection = (totalRows, projectId, iaaConfig) => {
+  const enabled = !!iaaConfig?.enabled && (iaaConfig?.portionPercent ?? 0) > 0;
+  const portion = Math.max(0, Math.min(100, Math.floor(iaaConfig?.portionPercent ?? 0)));
+  if (!enabled || totalRows <= 0) return new Set();
+
+  const seedBase = (iaaConfig?.seed ?? 0) + hashStringToSeed(projectId ?? '');
+  const rng = mulberry32(seedBase);
+  const iaaCount = Math.min(totalRows, Math.ceil((totalRows * portion) / 100));
+  const indices = shuffleWithRng(Array.from({ length: totalRows }, (_, i) => i), rng);
+  return new Set(indices.slice(0, iaaCount));
+};
+
+export const applyIaaSelectionToDataPoint = (dataPoint, rowOrder, iaaSelection) => ({
+  ...dataPoint,
+  isIAA: iaaSelection.has(rowOrder),
+  assignments: [],
+  status: 'pending',
+  finalAnnotation: '',
+  humanAnnotation: '',
+  annotationDrafts: {}
+});
 
 export const computeProjectStats = (dataPoints) => {
   const accepted = dataPoints.filter((dp) => dp.status === 'accepted').length;
@@ -223,6 +257,32 @@ const buildJsonDataPoints = ({ jsonData, prompt, customFieldName, selectedDispla
       annotatedAt: now
     };
   });
+};
+
+export const mapJsonItemToDataPoint = (item, options = {}, now = Date.now()) => {
+  const metadata = item && typeof item === 'object' && !Array.isArray(item)
+    ? toMetadataRecord(item)
+    : {};
+  const content = typeof item === 'string'
+    ? item
+    : item?.text || item?.content || JSON.stringify(item);
+
+  return {
+    id: crypto.randomUUID(),
+    content,
+    type: inferDataPointType(content, item?.type),
+    originalAnnotation: item?.annotation || item?.label || '',
+    aiSuggestions: {},
+    ratings: {},
+    status: 'pending',
+    uploadPrompt: options.prompt || item?.prompt || '',
+    customField: '',
+    customFieldName: options.customFieldName || '',
+    metadata,
+    displayMetadata: toDisplayMetadataRecord(metadata, options.selectedDisplayColumns || []),
+    customFieldValues: {},
+    annotatedAt: now
+  };
 };
 
 const buildCsvDataPoints = ({ csvText, prompt, customFieldName, selectedContentColumn, selectedDisplayColumns, now }) => {
@@ -295,6 +355,71 @@ const buildCsvDataPoints = ({ csvText, prompt, customFieldName, selectedContentC
   return dataPoints;
 };
 
+export const createCsvMapper = (rawHeader, options = {}) => {
+  if (!rawHeader || rawHeader.length === 0) {
+    throw new Error('CSV header row is missing.');
+  }
+
+  const header = normalizeCsvHeader(rawHeader);
+  let contentIndex = options.selectedContentColumn
+    ? header.findIndex((h) => h === options.selectedContentColumn)
+    : header.findIndex((h) => h.toLowerCase().includes('text') || h.toLowerCase().includes('content'));
+
+  if (contentIndex < 0) {
+    const fallbackIndex = header.findIndex((h) => h.toLowerCase() !== 'id');
+    if (fallbackIndex >= 0) {
+      contentIndex = fallbackIndex;
+    } else {
+      const required = options.selectedContentColumn
+        ? `"${options.selectedContentColumn}"`
+        : 'a "text" or "content" column';
+      throw new Error(`CSV file is missing ${required}.`);
+    }
+  }
+
+  return {
+    header,
+    contentIndex,
+    annotationIndex: header.findIndex((h) => h.toLowerCase().includes('label') || h.toLowerCase().includes('annotation')),
+    contentColumn: header[contentIndex],
+    selectedDisplayColumns: options.selectedDisplayColumns || [],
+    prompt: options.prompt || '',
+    customFieldName: options.customFieldName || '',
+  };
+};
+
+export const mapCsvValuesToDataPoint = (rawValues, mapper, now = Date.now()) => {
+  const values = rawValues.map((value) => value ?? '');
+  while (values.length < mapper.header.length) {
+    values.push('');
+  }
+
+  const metadata = {};
+  mapper.header.forEach((column, index) => {
+    if (values[index] !== undefined) {
+      metadata[column] = values[index];
+    }
+  });
+
+  const content = mapper.contentIndex >= 0 ? values[mapper.contentIndex] : (values[0] || '');
+  return {
+    id: crypto.randomUUID(),
+    content,
+    type: inferDataPointType(content, metadata.type),
+    originalAnnotation: mapper.annotationIndex >= 0 ? values[mapper.annotationIndex] : '',
+    aiSuggestions: {},
+    ratings: {},
+    status: 'pending',
+    uploadPrompt: mapper.prompt,
+    customField: '',
+    customFieldName: mapper.customFieldName,
+    metadata,
+    displayMetadata: toDisplayMetadataRecord(metadata, mapper.selectedDisplayColumns, mapper.contentColumn),
+    customFieldValues: {},
+    annotatedAt: now
+  };
+};
+
 const buildTxtDataPoints = ({ text, prompt, customFieldName }) => {
   const lines = text.split(/\r?\n/).filter((line) => line.trim());
   if (lines.length === 0) {
@@ -318,6 +443,23 @@ const buildTxtDataPoints = ({ text, prompt, customFieldName }) => {
     annotatedAt: Date.now()
   }));
 };
+
+export const mapTxtLineToDataPoint = (line, options = {}, now = Date.now()) => ({
+  id: crypto.randomUUID(),
+  content: line.trim(),
+  type: 'text',
+  originalAnnotation: '',
+  aiSuggestions: {},
+  ratings: {},
+  status: 'pending',
+  uploadPrompt: options.prompt || '',
+  customField: '',
+  customFieldName: options.customFieldName || '',
+  metadata: {},
+  displayMetadata: {},
+  customFieldValues: {},
+  annotatedAt: now
+});
 
 export const parseImportedFile = ({
   originalFilename,

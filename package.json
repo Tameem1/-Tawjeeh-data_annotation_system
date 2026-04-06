@@ -59,6 +59,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1024.0",
+    "@aws-sdk/s3-request-presigner": "^3.1024.0",
     "@hookform/resolvers": "^3.10.0",
     "@huggingface/hub": "^2.7.1",
     "@radix-ui/react-accordion": "^1.2.11",
@@ -97,6 +99,7 @@
     "cmdk": "^1.1.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "csv-parse": "^6.2.1",
     "date-fns": "^3.6.0",
     "dotenv": "^17.2.3",
     "driver.js": "^1.4.0",

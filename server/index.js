@@ -17,6 +17,7 @@ import { registerCommentRoutes } from './routes/comments.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerIAARoutes } from './routes/iaa.js';
+import { startImportWorker } from './services/importWorker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -59,6 +60,7 @@ registerCommentRoutes(app);
 registerNotificationRoutes(app);
 registerTemplateRoutes(app);
 registerIAARoutes(app);
+startImportWorker();
 
 // Legacy project param handler (for existing routes)
 app.param('id', async (req, _res, next, _id) => {

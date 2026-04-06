@@ -149,6 +149,7 @@ const DataLabelingWorkspace = () => {
   const [showUploadPrompt, setShowUploadPrompt] = useState(false);
   const [projectAccess, setProjectAccess] = useState<Project | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadStatusMessage, setUploadStatusMessage] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploadPrompt, setUploadPrompt] = useState('');
 
@@ -207,6 +208,7 @@ const DataLabelingWorkspace = () => {
     userId: currentUser?.id ?? "guest",
     steps: workspaceTutorialSteps,
   });
+  const activeImportJobKey = projectId ? `tawjeeh-active-import-job-${projectId}` : null;
 
   useEffect(() => {
     if (!currentUser || dataPoints.length === 0) return;
@@ -233,6 +235,61 @@ const DataLabelingWorkspace = () => {
       console.error("Failed to log project action:", error);
     }
   };
+
+  const waitForImportJobCompletion = useCallback(async (jobId: string) => {
+    while (true) {
+      const job = await projectService.getImportJob(jobId);
+      if (job.status === 'queued') {
+        setUploadStatusMessage('Preparing import...');
+      } else if (job.status === 'processing') {
+        setUploadStatusMessage(job.rowsProcessed > 0 ? `Importing rows... ${job.rowsProcessed}` : 'Importing rows...');
+      } else if (job.status === 'completed') {
+        return job;
+      } else if (job.status === 'failed') {
+        throw new Error(job.errorMessage || 'Import job failed.');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeImportJobKey) return;
+    const activeJobId = sessionStorage.getItem(activeImportJobKey);
+    if (!activeJobId) return;
+
+    let cancelled = false;
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadStatusMessage('Importing rows...');
+
+    waitForImportJobCompletion(activeJobId)
+      .then(async (job) => {
+        if (cancelled) return;
+        sessionStorage.removeItem(activeImportJobKey);
+        await reloadProjectData();
+        setUploadStatusMessage('Import completed');
+        toast({
+          title: 'Import completed',
+          description: `${job.rowsImported} rows imported successfully.`
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        sessionStorage.removeItem(activeImportJobKey);
+        setUploadError(error instanceof Error ? error.message : 'Import job failed.');
+        setUploadStatusMessage(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsUploading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeImportJobKey, reloadProjectData, waitForImportJobCompletion]);
 
   useEffect(() => {
     if (!projectAccess || !currentUser) return;
@@ -1334,6 +1391,8 @@ const DataLabelingWorkspace = () => {
   const processFileUpload = async (file: File | null, prompt: string, customField: string, importedRows?: Array<Record<string, unknown>>) => {
     setIsUploading(true);
     setShowUploadPrompt(false);
+    setUploadError(null);
+    setUploadStatusMessage(null);
 
     try {
       const lastDotIndex = file?.name.lastIndexOf('.') ?? -1;
@@ -1409,19 +1468,50 @@ const DataLabelingWorkspace = () => {
           throw new Error('Project context is missing.');
         }
 
-        const result = await projectService.importFile(projectId, file, {
-          prompt,
-          customFieldName: customField,
+        setUploadStatusMessage('Uploading to storage...');
+        const uploadConfig = await projectService.initImportUpload(projectId, file);
+        const uploadResponse = await fetch(uploadConfig.uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream'
+          },
+          body: file
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload file to storage.');
+        }
+
+        setUploadStatusMessage('Preparing import...');
+        const createdJob = await projectService.createImportJob(projectId, {
+          objectKey: uploadConfig.objectKey,
+          fileName: file.name,
+          fileType: extension,
           selectedContentColumn,
           selectedDisplayColumns,
+          prompt,
+          customFieldName: customField,
           importMode: 'replace'
         });
 
+        if (activeImportJobKey) {
+          sessionStorage.setItem(activeImportJobKey, createdJob.jobId);
+        }
+
+        const job = await waitForImportJobCompletion(createdJob.jobId);
+        if (activeImportJobKey) {
+          sessionStorage.removeItem(activeImportJobKey);
+        }
         setPendingHFRows(null);
         await reloadProjectData();
+        setUploadStatusMessage('Import completed');
 
         const uploadSource = `File: ${file.name}`;
-        await logProjectAction('upload', `${uploadSource}, Items: ${result.imported}`);
+        await logProjectAction('upload', `${uploadSource}, Items: ${job.rowsImported}`);
+        toast({
+          title: 'Import completed',
+          description: `${job.rowsImported} rows imported successfully.`
+        });
         return;
       } else {
         throw new Error('Unsupported file upload path.');
@@ -1439,7 +1529,11 @@ const DataLabelingWorkspace = () => {
       await logProjectAction('upload', `${uploadSource}, Items: ${parsedData.length}`);
     } catch (error) {
       const errorMessage = `Failed to parse file: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      if (activeImportJobKey) {
+        sessionStorage.removeItem(activeImportJobKey);
+      }
       setUploadError(errorMessage);
+      setUploadStatusMessage(null);
       toast({
         title: 'File upload failed',
         description: errorMessage,
@@ -3086,6 +3180,9 @@ const DataLabelingWorkspace = () => {
                       {uploadError && (
                         <p className="text-xs text-destructive">{uploadError}</p>
                       )}
+                      {uploadStatusMessage && (
+                        <p className="text-xs text-muted-foreground">{uploadStatusMessage}</p>
+                      )}
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setShowHFDialog(false)} disabled={isPublishing}>{t("common.cancel")}</Button>
@@ -3284,6 +3381,12 @@ const DataLabelingWorkspace = () => {
                       >
                         {t("workspace.uploadFile")}
                       </Button>
+                      {uploadStatusMessage && (
+                        <p className="text-xs text-muted-foreground">{uploadStatusMessage}</p>
+                      )}
+                      {uploadError && (
+                        <p className="text-xs text-destructive">{uploadError}</p>
+                      )}
                     </div>
                   </Card>
 

@@ -3,7 +3,7 @@
  */
 
 import { ProjectIAAConfig } from "@/types/data";
-import type { ProjectDataStatusCounts, AnnotatorStatsResponse, TaskTemplate, IAAStats } from "@/types/data";
+import type { ProjectDataStatusCounts, AnnotatorStatsResponse, TaskTemplate, IAAStats, ImportJobStatus } from "@/types/data";
 
 export interface AppNotification {
     id: string;
@@ -102,6 +102,28 @@ export const apiClient = {
             method: 'POST',
             body: data,
         }),
+
+        initImportUpload: (id: string, data: { fileName: string; fileType: string; fileSize: number }) =>
+            request<{ uploadUrl: string; objectKey: string; expiresAt: number; maxFileSizeBytes: number }>(`/projects/${id}/import-uploads`, {
+                method: 'POST',
+                body: JSON.stringify(data),
+            }),
+
+        createImportJob: (id: string, data: {
+            objectKey: string;
+            fileName: string;
+            fileType: string;
+            selectedContentColumn?: string;
+            selectedDisplayColumns?: string[];
+            prompt?: string;
+            customFieldName?: string;
+            importMode?: 'replace';
+        }) => request<{ jobId: string; status: ImportJobStatus['status'] }>(`/projects/${id}/import-jobs`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+        getImportJob: (jobId: string) => request<ImportJobStatus>(`/import-jobs/${jobId}`),
 
         getData: (projectId: string, page: number = 1, limit?: number) => {
             const params = new URLSearchParams();

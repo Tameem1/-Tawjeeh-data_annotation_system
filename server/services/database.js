@@ -269,6 +269,66 @@ function createSchema() {
     )
   `);
 
+  // Import jobs table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS import_jobs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      status TEXT NOT NULL,
+      object_key TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      file_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      options_json TEXT NOT NULL DEFAULT '{}',
+      rows_processed INTEGER NOT NULL DEFAULT 0,
+      rows_imported INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT,
+      created_at INTEGER NOT NULL,
+      started_at INTEGER,
+      finished_at INTEGER,
+      locked_at INTEGER,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Import staging table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS import_staging_data_points (
+      job_id TEXT NOT NULL,
+      row_order INTEGER NOT NULL,
+      id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      type TEXT DEFAULT 'text',
+      original_annotation TEXT,
+      human_annotation TEXT,
+      final_annotation TEXT,
+      ai_suggestions TEXT DEFAULT '{}',
+      ratings TEXT DEFAULT '{}',
+      status TEXT DEFAULT 'pending',
+      confidence REAL,
+      upload_prompt TEXT,
+      custom_field TEXT,
+      custom_field_name TEXT,
+      custom_field_values TEXT DEFAULT '{}',
+      metadata TEXT DEFAULT '{}',
+      display_metadata TEXT DEFAULT '{}',
+      split TEXT,
+      annotator_id TEXT,
+      annotator_name TEXT,
+      annotated_at INTEGER,
+      is_iaa INTEGER DEFAULT 0,
+      assignments TEXT DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (job_id, row_order),
+      FOREIGN KEY (job_id) REFERENCES import_jobs(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+
   // Create indexes for common queries
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_data_points_project ON data_points(project_id);
@@ -280,6 +340,9 @@ function createSchema() {
     CREATE INDEX IF NOT EXISTS idx_project_annotators_user ON project_annotators(user_id);
     CREATE INDEX IF NOT EXISTS idx_invite_tokens_token ON invite_tokens(token);
     CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at);
+    CREATE INDEX IF NOT EXISTS idx_import_jobs_status_created ON import_jobs(status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_import_jobs_project_created ON import_jobs(project_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_import_staging_job_order ON import_staging_data_points(job_id, row_order);
   `);
 
   // Migrations — add columns if they don't exist yet
@@ -305,6 +368,7 @@ function createSchema() {
     // QA queue columns
     `ALTER TABLE data_points ADD COLUMN qa_status TEXT DEFAULT 'pending_review'`,
     `ALTER TABLE data_points ADD COLUMN qa_reviewer_id TEXT`,
+    `ALTER TABLE import_jobs ADD COLUMN rows_imported INTEGER NOT NULL DEFAULT 0`,
   ];
   for (const sql of migrations) {
     try { db.exec(sql); } catch (_) { /* already exists */ }
