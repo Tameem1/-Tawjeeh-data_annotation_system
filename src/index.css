@@ -269,4 +269,92 @@ html[dir="rtl"] pre {
     border: 1px solid hsl(var(--border));
     box-shadow: var(--shadow-elegant);
   }
+
+  .snapshot-shell {
+    background:
+      radial-gradient(circle at top right, hsl(var(--ai-primary) / 0.12), transparent 22%),
+      linear-gradient(180deg, hsl(var(--card) / 0.96), hsl(var(--secondary) / 0.92));
+    box-shadow:
+      inset 0 0 0 0.5px hsl(var(--shadow-base) / 0.075),
+      0 0 0 1px hsl(var(--shadow-base) / 0.06),
+      0 18px 40px hsl(var(--shadow-base) / 0.05);
+  }
+
+  .snapshot-card {
+    background: hsl(var(--card) / 0.88);
+    border: 1px solid hsl(var(--border) / 0.9);
+    box-shadow: var(--shadow-elegant);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+  }
+
+  .snapshot-card:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      inset 0 0 0 0.5px hsl(var(--shadow-base) / 0.075),
+      0 0 0 1px hsl(var(--shadow-base) / 0.06),
+      0 10px 24px hsl(var(--shadow-base) / 0.06);
+  }
+
+  .snapshot-step {
+    background: hsl(var(--stone) / 0.72);
+    border: 1px solid hsl(var(--border) / 0.75);
+  }
+
+  .motion-fade-up {
+    animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .motion-float {
+    animation: float-soft 6s ease-in-out infinite;
+  }
+
+  .motion-slide-x {
+    animation: slide-x-soft 2.8s ease-in-out infinite;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes slide-x-soft {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-fade-up,
+  .motion-float,
+  .motion-slide-x {
+    animation: none !important;
+  }
+
+  .snapshot-card:hover {
+    transform: none;
+  }
 }

@@ -17,6 +17,14 @@ export interface AIProvider {
   processBatch?: (texts: string[], prompt?: string, apiKey?: string, modelId?: string, baseUrl?: string, type?: AIInputType, options?: AIRequestOptions) => Promise<string[]>;
 }
 
+const normalizeOptionalNumber = (value: unknown): number | undefined => (
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined
+);
+
+const omitNilValues = <T extends Record<string, unknown>>(value: T): Partial<T> => (
+  Object.fromEntries(Object.entries(value).filter(([, entry]) => entry != null)) as Partial<T>
+);
+
 export const AVAILABLE_PROVIDERS: ModelProvider[] = [
   {
     id: 'openai',
@@ -168,12 +176,12 @@ class OpenAIProvider implements AIProvider {
         'Content-Type': 'application/json',
         ...buildProxyHeaders(apiKey, options?.connectionId)
       },
-      body: JSON.stringify({
+      body: JSON.stringify(omitNilValues({
         model: modelId,
         messages,
-        temperature: options?.temperature,
-        max_tokens: options?.maxTokens
-      })
+        temperature: normalizeOptionalNumber(options?.temperature),
+        max_tokens: normalizeOptionalNumber(options?.maxTokens)
+      }))
     });
 
     if (!response.ok) {
@@ -257,13 +265,13 @@ class AnthropicProvider implements AIProvider {
         'Content-Type': 'application/json',
         ...buildProxyHeaders(apiKey, options?.connectionId)
       },
-      body: JSON.stringify({
+      body: JSON.stringify(omitNilValues({
         model: modelId,
-        max_tokens: options?.maxTokens ?? 1024,
-        temperature: options?.temperature,
+        max_tokens: normalizeOptionalNumber(options?.maxTokens) ?? 1024,
+        temperature: normalizeOptionalNumber(options?.temperature),
         system: prompt || "You are a helpful data labeling assistant.",
         messages
-      })
+      }))
     });
 
     if (!response.ok) {
@@ -304,6 +312,11 @@ class GeminiProvider implements AIProvider {
       });
     }
 
+    const generationConfig = omitNilValues({
+      temperature: normalizeOptionalNumber(options?.temperature),
+      maxOutputTokens: normalizeOptionalNumber(options?.maxTokens)
+    });
+
     const body: Record<string, unknown> = {
       model: modelId,
       contents: [
@@ -311,12 +324,12 @@ class GeminiProvider implements AIProvider {
           role: 'user',
           parts
         }
-      ],
-      generationConfig: {
-        temperature: options?.temperature,
-        maxOutputTokens: options?.maxTokens
-      }
+      ]
     };
+
+    if (Object.keys(generationConfig).length > 0) {
+      body.generationConfig = generationConfig;
+    }
 
     if (prompt) {
       body.systemInstruction = {
@@ -379,13 +392,13 @@ class SambaNovaProvider implements AIProvider {
           'Content-Type': 'application/json',
           ...buildProxyHeaders(apiKey, options?.connectionId)
         },
-        body: JSON.stringify({
+        body: JSON.stringify(omitNilValues({
           model: modelId,
           messages,
-          temperature: options?.temperature ?? 0.1,
+          temperature: normalizeOptionalNumber(options?.temperature) ?? 0.1,
           top_p: 0.1,
-          max_tokens: options?.maxTokens
-        })
+          max_tokens: normalizeOptionalNumber(options?.maxTokens)
+        }))
       });
 
       if (!response.ok) {
@@ -403,16 +416,16 @@ class SambaNovaProvider implements AIProvider {
         'Content-Type': 'application/json',
         ...buildProxyHeaders(apiKey, options?.connectionId)
       },
-      body: JSON.stringify({
+      body: JSON.stringify(omitNilValues({
         model: modelId,
         messages: [
           { role: "system", content: prompt || "You are a helpful data labeling assistant." },
           { role: "user", content: text }
         ],
-        temperature: options?.temperature ?? 0.1,
+        temperature: normalizeOptionalNumber(options?.temperature) ?? 0.1,
         top_p: 0.1,
-        max_tokens: options?.maxTokens
-      })
+        max_tokens: normalizeOptionalNumber(options?.maxTokens)
+      }))
     });
 
     if (!response.ok) {
@@ -455,12 +468,12 @@ class OpenRouterProvider implements AIProvider {
         'Content-Type': 'application/json',
         ...buildProxyHeaders(apiKey, options?.connectionId)
       },
-      body: JSON.stringify({
+      body: JSON.stringify(omitNilValues({
         model: modelId,
         messages,
-        temperature: options?.temperature,
-        max_tokens: options?.maxTokens
-      })
+        temperature: normalizeOptionalNumber(options?.temperature),
+        max_tokens: normalizeOptionalNumber(options?.maxTokens)
+      }))
     });
 
     if (!response.ok) {
@@ -506,11 +519,14 @@ class LocalProvider implements AIProvider {
     } else {
       body.prompt = `${systemPrompt}\n\nText to analyze:\n${text}`;
     }
-    if (options?.temperature !== undefined) {
-      body.options.temperature = options.temperature;
+    const temperature = normalizeOptionalNumber(options?.temperature);
+    const maxTokens = normalizeOptionalNumber(options?.maxTokens);
+
+    if (temperature !== undefined) {
+      body.options.temperature = temperature;
     }
-    if (options?.maxTokens !== undefined) {
-      body.options.num_predict = options.maxTokens;
+    if (maxTokens !== undefined) {
+      body.options.num_predict = maxTokens;
     }
     if (Object.keys(body.options).length === 0) {
       delete body.options;

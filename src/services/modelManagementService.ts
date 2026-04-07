@@ -8,6 +8,18 @@ let policiesCache: Record<string, ProjectModelPolicy> = {};
 let initialized = false;
 const listeners = new Set<() => void>();
 
+const normalizeOptionalNumber = (value: unknown): number | undefined => (
+  typeof value === "number" && Number.isFinite(value) ? value : undefined
+);
+
+const normalizeProfile = (profile: ModelProfile): ModelProfile => ({
+  ...profile,
+  temperature: normalizeOptionalNumber(profile.temperature),
+  maxTokens: normalizeOptionalNumber(profile.maxTokens),
+  inputPricePerMillion: normalizeOptionalNumber(profile.inputPricePerMillion),
+  outputPricePerMillion: normalizeOptionalNumber(profile.outputPricePerMillion),
+});
+
 function notifyListeners() {
   listeners.forEach(listener => listener());
 }
@@ -22,7 +34,7 @@ async function ensureInitialized(): Promise<void> {
       apiClient.profiles.getAll()
     ]);
     connectionsCache = connections;
-    profilesCache = profiles;
+    profilesCache = profiles.map(normalizeProfile);
     initialized = true;
     notifyListeners();
   } catch (error) {
@@ -86,7 +98,7 @@ export const modelManagementService = {
 
   saveProfile: (profile: ModelProfile): ModelProfile => {
     const now = Date.now();
-    const updated = { ...profile, updatedAt: now, createdAt: profile.createdAt || now };
+    const updated = normalizeProfile({ ...profile, updatedAt: now, createdAt: profile.createdAt || now });
 
     // Update local cache immediately
     const existingIndex = profilesCache.findIndex(item => item.id === profile.id);
@@ -98,7 +110,7 @@ export const modelManagementService = {
     notifyListeners();
 
     // Sync to server in background
-    apiClient.profiles.save(profile).catch(err => {
+    apiClient.profiles.save(updated).catch(err => {
       console.error('Failed to save profile to server:', err);
     });
 

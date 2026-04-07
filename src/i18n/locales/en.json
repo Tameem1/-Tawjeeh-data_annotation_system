@@ -746,5 +746,165 @@
         "description": "Click the <b>?</b> button any time to re-run this workspace tour."
       }
     }
+  },
+  "landing": {
+    "header": {
+      "brand": "Tawjeeh Annotation",
+      "tagline": "Annotation infrastructure for teams that need speed, quality, and control."
+    },
+    "hero": {
+      "eyebrow": "AI-enabled annotation system",
+      "title": "AI-assisted annotation with humans in the loop.",
+      "description": "Generate draft labels with AI, review them with people, and run bilingual annotation workflows with stronger quality control.",
+      "requestDemo": "Request Demo",
+      "enterApp": "Enter the App"
+    },
+    "highlights": {
+      "ai": {
+        "title": "AI-assisted review loops",
+        "description": "Generate drafts, review outputs, and approve faster."
+      },
+      "qa": {
+        "title": "Operational QA visibility",
+        "description": "Track agreement, throughput, and quality in one place."
+      },
+      "languages": {
+        "title": "Arabic and English ready",
+        "description": "Localized workflows for bilingual teams."
+      }
+    },
+    "aiWorkflow": {
+      "eyebrow": "AI Workflow",
+      "title": "From AI draft to reviewed annotation.",
+      "coverageLabel": "Coverage",
+      "coverageValue": "Text, image, audio, QA",
+      "steps": [
+        "AI generates draft annotations.",
+        "Annotators review and approve outputs.",
+        "QA teams measure agreement and export results."
+      ],
+      "humanControlLabel": "Human Control",
+      "humanControlValue": "Final labels stay reviewable and auditable.",
+      "operationalValueLabel": "Operational Value",
+      "operationalValueValue": "Teams move faster without losing quality control."
+    },
+    "aiMatters": {
+      "eyebrow": "Why AI Matters",
+      "title": "More than an annotation interface.",
+      "description": "Human-supervised automation helps teams move faster without losing control.",
+      "items": [
+        "Generate draft annotations before human review begins.",
+        "Compare AI output with human edits.",
+        "Control model behavior by project.",
+        "Keep final labels reviewable and auditable."
+      ]
+    },
+    "systemFit": {
+      "eyebrow": "System Fit",
+      "title": "Built for automation and oversight.",
+      "description": "Supports classification, extraction, review, and multilingual labeling.",
+      "items": [
+        "Text annotation with AI drafts and human correction",
+        "Image and audio workflows in the same system",
+        "Task-specific forms, labels, and guidelines",
+        "Quality tracking tied to real annotation activity"
+      ]
+    },
+    "snapshot": {
+      "eyebrow": "Platform Snapshot",
+      "title": "The product surface, separated from the hero.",
+      "description": "Platform detail lives here so the hero can stay focused.",
+      "badge": "Elegant workflow overview",
+      "messageLabel": "Snapshot Message",
+      "messageTitle": "Everything subscribers need to run AI-assisted annotation at scale.",
+      "messageDescription": "Task setup, bilingual collaboration, AI review, and measurable QA in one product.",
+      "cards": [
+        {
+          "label": "Workspace modes",
+          "value": "Record + List",
+          "description": "Move between deep review and broad browsing."
+        },
+        {
+          "label": "Language support",
+          "value": "Arabic + English",
+          "description": "RTL-aware collaboration for bilingual teams."
+        },
+        {
+          "label": "AI flow",
+          "value": "Draft + Review",
+          "description": "AI suggestions stay visible until humans approve."
+        }
+      ]
+    },
+    "workflow": {
+      "eyebrow": "Operational Flow",
+      "description": "From setup to export-ready annotations",
+      "steps": [
+        "Import text, image, audio, or datasets.",
+        "Configure labels, fields, guidelines, and model rules.",
+        "Review AI-assisted work with comments and progress tracking.",
+        "Measure quality and export final outputs."
+      ]
+    },
+    "coreProduct": {
+      "eyebrow": "Core Product",
+      "title": "The platform now reflects the actual product surface.",
+      "description": "The interface now focuses on the tools subscriber teams actually use."
+    },
+    "modules": {
+      "workspace": {
+        "title": "Annotation workspace",
+        "description": "Switch between focused review and high-volume browsing."
+      },
+      "configuration": {
+        "title": "Task configuration",
+        "description": "Build tasks with templates, XML forms, and custom fields."
+      },
+      "team": {
+        "title": "Team orchestration",
+        "description": "Assign teams, publish guidelines, and collaborate in context."
+      },
+      "importExport": {
+        "title": "Import and export flow",
+        "description": "Import datasets and export clean outputs for production."
+      }
+    },
+    "included": {
+      "eyebrow": "Included",
+      "title": "Subscriber value stays front and center.",
+      "description": "Clear outcomes instead of implementation details.",
+      "items": [
+        "AI suggestions with accept, edit, and reject flows",
+        "Role-based access for admins, managers, and annotators",
+        "Annotation guidelines, comments, and in-app notifications",
+        "Custom task templates and structured field configuration",
+        "IAA dashboards, audit logs, and annotator performance views",
+        "Dataset import and export for production-ready pipelines"
+      ]
+    },
+    "demo": {
+      "eyebrow": "Demo & Access",
+      "title": "See the workflow in action.",
+      "description": "Tell us about your workflow and we’ll guide you through the right setup, review, QA, and export flow.",
+      "openCalendar": "Open Calendar",
+      "calendarFallback": "Demo requests will still be saved even if the calendar link has not been configured yet.",
+      "organization": "Organization",
+      "phone": "Phone",
+      "message": "Message",
+      "messagePlaceholder": "Tell us about your annotation workflow, data types, or team setup.",
+      "existingSubscribers": "Existing subscribers can continue in the app.",
+      "submit": "Submit Request",
+      "submitting": "Submitting...",
+      "toastReceivedTitle": "Demo request received",
+      "toastRedirecting": "Redirecting you to Calendly.",
+      "toastSaved": "Your request was saved successfully.",
+      "toastFailedTitle": "Could not submit demo request",
+      "toastFailedDescription": "Please try again."
+    },
+    "footer": {
+      "copy": "Tawjeeh Annotation helps teams run AI-assisted annotation with stronger QA and bilingual collaboration.",
+      "inviteSignup": "Invite Signup",
+      "appLogin": "App Login"
+    }
   }
 }

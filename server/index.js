@@ -113,6 +113,14 @@ const getApiKey = (req, envVarName) => {
     return process.env[envVarName];
 };
 
+const normalizeOptionalNumber = (value) => (
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined
+);
+
+const omitNilFields = (value) => (
+    Object.fromEntries(Object.entries(value).filter(([, entry]) => entry != null))
+);
+
 // OpenAI Proxy
 app.post('/api/openai/chat', requireAuth, async (req, res) => {
     try {
@@ -123,13 +131,21 @@ app.post('/api/openai/chat', requireAuth, async (req, res) => {
 
         const { model, messages, temperature, top_p, max_tokens } = req.body;
 
+        const responseBody = omitNilFields({
+            model,
+            messages,
+            temperature: normalizeOptionalNumber(temperature),
+            top_p: normalizeOptionalNumber(top_p),
+            max_tokens: normalizeOptionalNumber(max_tokens)
+        });
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify({ model, messages, temperature, top_p, max_tokens })
+            body: JSON.stringify(responseBody)
         });
 
         const data = await response.json();
@@ -153,6 +169,13 @@ app.post('/api/anthropic/message', requireAuth, async (req, res) => {
 
         const { model, messages, system, max_tokens } = req.body;
 
+        const responseBody = omitNilFields({
+            model,
+            messages,
+            system,
+            max_tokens: normalizeOptionalNumber(max_tokens)
+        });
+
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
@@ -160,7 +183,7 @@ app.post('/api/anthropic/message', requireAuth, async (req, res) => {
                 'x-api-key': apiKey,
                 'anthropic-version': '2023-06-01'
             },
-            body: JSON.stringify({ model, messages, system, max_tokens })
+            body: JSON.stringify(responseBody)
         });
 
         const data = await response.json();
@@ -187,17 +210,20 @@ app.post('/api/gemini/generate', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Model is required' });
         }
 
+        const cleanedGenerationConfig = generationConfig && typeof generationConfig === 'object'
+            ? omitNilFields(generationConfig)
+            : undefined;
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
+            body: JSON.stringify(omitNilFields({
                 contents,
-                generationConfig,
+                generationConfig: cleanedGenerationConfig && Object.keys(cleanedGenerationConfig).length > 0 ? cleanedGenerationConfig : undefined,
                 systemInstruction
-            })
+            }))
         });
 
         const data = await response.json();
@@ -221,13 +247,21 @@ app.post('/api/sambanova/chat', requireAuth, async (req, res) => {
 
         const { model, messages, temperature, top_p, max_tokens } = req.body;
 
+        const responseBody = omitNilFields({
+            model,
+            messages,
+            temperature: normalizeOptionalNumber(temperature),
+            top_p: normalizeOptionalNumber(top_p),
+            max_tokens: normalizeOptionalNumber(max_tokens)
+        });
+
         const response = await fetch('https://api.sambanova.ai/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify({ model, messages, temperature, top_p, max_tokens })
+            body: JSON.stringify(responseBody)
         });
 
         const data = await response.json();
@@ -251,13 +285,21 @@ app.post('/api/openrouter/chat', requireAuth, async (req, res) => {
 
         const { model, messages, temperature, top_p, max_tokens } = req.body;
 
+        const responseBody = omitNilFields({
+            model,
+            messages,
+            temperature: normalizeOptionalNumber(temperature),
+            top_p: normalizeOptionalNumber(top_p),
+            max_tokens: normalizeOptionalNumber(max_tokens)
+        });
+
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify({ model, messages, temperature, top_p, max_tokens })
+            body: JSON.stringify(responseBody)
         });
 
         const data = await response.json();

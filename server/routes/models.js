@@ -13,6 +13,12 @@ function maskApiKey(key) {
  */
 export function registerModelRoutes(app) {
     const db = getDatabase();
+    const toOptionalNumber = (value) => (
+        typeof value === 'number' && Number.isFinite(value) ? value : undefined
+    );
+    const toNullableNumber = (value) => (
+        typeof value === 'number' && Number.isFinite(value) ? value : null
+    );
 
     // Provider Connections — admin only for write, requireAuth for read
     app.get('/api/connections', requireAuth, (req, res) => {
@@ -95,10 +101,10 @@ export function registerModelRoutes(app) {
                 modelId: p.model_id,
                 displayName: p.display_name,
                 defaultPrompt: p.default_prompt,
-                temperature: p.temperature,
-                maxTokens: p.max_tokens,
-                inputPricePerMillion: p.input_price_per_million,
-                outputPricePerMillion: p.output_price_per_million,
+                temperature: toOptionalNumber(p.temperature),
+                maxTokens: toOptionalNumber(p.max_tokens),
+                inputPricePerMillion: toOptionalNumber(p.input_price_per_million),
+                outputPricePerMillion: toOptionalNumber(p.output_price_per_million),
                 isActive: !!p.is_active,
                 createdAt: p.created_at,
                 updatedAt: p.updated_at
@@ -153,10 +159,10 @@ export function registerModelRoutes(app) {
                 modelId,
                 displayName,
                 defaultPrompt || null,
-                temperature ?? null,
-                maxTokens ?? null,
-                inputPricePerMillion ?? null,
-                outputPricePerMillion ?? null,
+                toNullableNumber(temperature),
+                toNullableNumber(maxTokens),
+                toNullableNumber(inputPricePerMillion),
+                toNullableNumber(outputPricePerMillion),
                 isActive ? 1 : 0,
                 now,
                 now
