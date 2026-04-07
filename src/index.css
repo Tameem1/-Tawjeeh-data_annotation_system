@@ -2,111 +2,130 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    --background: 270 55% 98%;
-    --foreground: 232 24% 16%;
+    --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-display: "Waldenburg", "Cormorant Garamond", serif;
+    --font-display-strong: "WaldenburgFH", "Cormorant Garamond", serif;
+    --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+    --font-arabic: "Cairo", ui-sans-serif, system-ui, sans-serif;
+
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
 
     --card: 0 0% 100%;
-    --card-foreground: 232 24% 16%;
+    --card-foreground: 0 0% 0%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 232 24% 16%;
+    --popover-foreground: 0 0% 0%;
 
-    --primary: 194 84% 63%;
-    --primary-foreground: 0 0% 98%;
-    --primary-glow: 275 64% 74%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 0 0% 100%;
 
-    --secondary: 268 58% 95%;
-    --secondary-foreground: 232 24% 20%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 0%;
 
-    --muted: 275 45% 96%;
-    --muted-foreground: 234 14% 45%;
+    --muted: 30 23% 95%;
+    --muted-foreground: 0 0% 30.6%;
 
-    --accent: 324 72% 74%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 30 23% 95%;
+    --accent-foreground: 0 0% 0%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 271 31% 88%;
-    --input: 271 31% 88%;
-    --ring: 275 64% 66%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 213 92% 79%;
 
-    --ai-primary: 194 84% 63%;
-    --ai-secondary: 275 64% 68%;
-    --success: 120 65% 45%;
-    --warning: 34 96% 71%;
-    --success-light: 120 60% 95%;
-    
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--ai-secondary)) 56%, hsl(33 100% 73%) 100%);
-    --gradient-ai: linear-gradient(90deg, hsl(var(--ai-primary)) 0%, hsl(var(--ai-secondary)) 52%, hsl(33 100% 73%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(275 50% 97%) 100%);
-    
-    --shadow-elegant: 0 14px 36px -16px hsl(var(--ai-secondary) / 0.28);
-    --shadow-ai: 0 0 42px hsl(var(--ai-primary) / 0.18);
-    
+    --ai-primary: 187 100% 75%;
+    --ai-secondary: 43 58% 87%;
+    --success: 147 42% 34%;
+    --warning: 36 86% 63%;
+    --success-light: 40 28% 95%;
+
+    --stone: 30 23% 95%;
+    --surface-subtle: 0 0% 96.1%;
+    --surface-alt: 0 0% 96.5%;
+    --shadow-base: 0 0% 0%;
+    --shadow-warm-color: 28 54% 20%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--secondary)) 100%);
+    --gradient-ai: linear-gradient(135deg, hsl(var(--ai-primary) / 0.28) 0%, hsl(var(--ai-secondary) / 0.4) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--secondary)) 100%);
+
+    --shadow-surface:
+      0 0 0 1px hsl(var(--shadow-base) / 0.06),
+      0 1px 2px hsl(var(--shadow-base) / 0.04),
+      0 2px 4px hsl(var(--shadow-base) / 0.04);
+    --shadow-float:
+      0 0 0 1px hsl(var(--shadow-base) / 0.06),
+      0 4px 4px hsl(var(--shadow-base) / 0.04);
+    --shadow-warm: 0 6px 16px hsl(var(--shadow-warm-color) / 0.04);
+    --shadow-elegant:
+      inset 0 0 0 0.5px hsl(var(--shadow-base) / 0.075),
+      0 0 0 1px hsl(var(--shadow-base) / 0.06),
+      0 1px 2px hsl(var(--shadow-base) / 0.04),
+      0 2px 4px hsl(var(--shadow-base) / 0.04);
+    --shadow-ai: 0 18px 40px hsl(var(--shadow-base) / 0.05);
+
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --radius: 1rem;
 
-    --radius: 0.75rem;
-
-    --sidebar-background: 270 45% 98%;
-
-    --sidebar-foreground: 232 20% 20%;
-
-    --sidebar-primary: 271 55% 38%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 274 43% 94%;
-
-    --sidebar-accent-foreground: 232 20% 20%;
-
-    --sidebar-border: 271 24% 88%;
-
-    --sidebar-ring: 194 84% 63%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 0%;
+    --sidebar-primary: 0 0% 0%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 23% 95%;
+    --sidebar-accent-foreground: 0 0% 0%;
+    --sidebar-border: 0 0% 89.8%;
+    --sidebar-ring: 213 92% 79%;
   }
 
   .dark {
-    --background: 244 33% 9%;
-    --foreground: 210 40% 98%;
+    --background: 24 9% 10%;
+    --foreground: 30 14% 94%;
 
-    --card: 244 30% 12%;
-    --card-foreground: 210 40% 98%;
+    --card: 24 8% 12%;
+    --card-foreground: 30 14% 94%;
 
-    --popover: 244 30% 12%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 24 8% 12%;
+    --popover-foreground: 30 14% 94%;
 
-    --primary: 193 89% 66%;
-    --primary-foreground: 240 34% 12%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 254 25% 18%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 24 6% 16%;
+    --secondary-foreground: 30 14% 94%;
 
-    --muted: 250 22% 17%;
-    --muted-foreground: 233 18% 72%;
+    --muted: 24 6% 16%;
+    --muted-foreground: 34 8% 66%;
 
-    --accent: 320 71% 70%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 24 8% 18%;
+    --accent-foreground: 30 14% 94%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 76% 62%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 251 21% 22%;
-    --input: 251 21% 22%;
-    --ring: 193 89% 66%;
-    --sidebar-background: 245 29% 11%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 275 64% 68%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 250 20% 17%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 251 21% 22%;
-    --sidebar-ring: 193 89% 66%;
+    --border: 24 7% 21%;
+    --input: 24 7% 21%;
+    --ring: 213 92% 79%;
+
+    --stone: 24 7% 18%;
+    --surface-subtle: 24 8% 13%;
+    --surface-alt: 24 7% 16%;
+    --shadow-base: 0 0% 0%;
+    --shadow-warm-color: 30 18% 10%;
+
+    --sidebar-background: 24 8% 12%;
+    --sidebar-foreground: 30 14% 94%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 24 8% 18%;
+    --sidebar-accent-foreground: 30 14% 94%;
+    --sidebar-border: 24 7% 21%;
+    --sidebar-ring: 213 92% 79%;
   }
 }
 
@@ -115,36 +134,56 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-background text-foreground;
-    font-family: 'Cairo', ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-body);
+    letter-spacing: 0.16px;
+    background-image:
+      radial-gradient(circle at top left, hsl(var(--ai-primary) / 0.12), transparent 22%),
+      radial-gradient(circle at top right, hsl(var(--stone) / 0.7), transparent 18%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--secondary)) 100%);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+  }
+
+  code,
+  pre,
+  kbd {
+    font-family: var(--font-mono);
   }
 }
 
-/* ── RTL / Arabic support ──────────────────────────────── */
-:root {
-  --font-arabic: 'Cairo', ui-sans-serif, system-ui, sans-serif;
-}
-
-/* When the document is set to RTL (Arabic), apply Cairo and flip layout */
 html[dir="rtl"] body {
   font-family: var(--font-arabic);
   text-align: right;
 }
 
-/* Ensure logical spacing utilities work correctly in RTL.
-   Tailwind's ms-* / me-* / ps-* / pe-* already handle this natively.
-   The rules below cover any legacy ml-* / mr-* / pl-* / pr-* in third-party
-   components that don't yet use logical properties. */
-html[dir="rtl"] .ml-auto { margin-left: unset; margin-right: auto; }
-html[dir="rtl"] .mr-auto { margin-right: unset; margin-left: auto; }
+html[dir="rtl"] .ml-auto {
+  margin-left: unset;
+  margin-right: auto;
+}
 
-/* Ensure table columns appear in RTL order (right-to-left) in Arabic */
+html[dir="rtl"] .mr-auto {
+  margin-right: unset;
+  margin-left: auto;
+}
+
 html[dir="rtl"] table {
   direction: rtl;
 }
 
-/* Keep number-only inputs and code blocks LTR even in RTL mode */
 html[dir="rtl"] input[type="number"],
 html[dir="rtl"] input[type="tel"],
 html[dir="rtl"] code,
@@ -154,12 +193,79 @@ html[dir="rtl"] pre {
 }
 
 @layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 300;
+    letter-spacing: -0.03em;
+  }
+
+  .font-display-strong {
+    font-family: var(--font-display-strong);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .app-page {
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at top left, hsl(var(--stone) / 0.8), transparent 24%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--secondary)) 100%);
+  }
+
+  .surface-card {
+    background: hsl(var(--card) / 0.94);
+    box-shadow: var(--shadow-elegant);
+  }
+
+  .surface-float {
+    background: hsl(var(--card) / 0.96);
+    box-shadow: var(--shadow-float);
+  }
+
+  .surface-warm {
+    background: hsl(var(--stone) / 0.8);
+    box-shadow: var(--shadow-warm);
+  }
+
+  .eyebrow {
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .display-hero {
+    font-family: var(--font-display);
+    font-size: clamp(3rem, 6vw, 4.75rem);
+    font-weight: 300;
+    line-height: 1.02;
+    letter-spacing: -0.06em;
+  }
+
+  .display-section {
+    font-family: var(--font-display);
+    font-size: clamp(2.25rem, 3vw, 3rem);
+    font-weight: 300;
+    line-height: 1.08;
+  }
+
+  .body-airy {
+    letter-spacing: 0.18px;
+    line-height: 1.6;
+  }
+
+  .hairline-divider {
+    border-color: hsl(var(--shadow-base) / 0.05);
+  }
+
   .bg-brand-gradient {
-    background-image: var(--gradient-primary);
+    background-image: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--surface-alt)) 100%);
   }
 
   .brand-tile {
-    background-image: linear-gradient(180deg, hsl(var(--card) / 0.96), hsl(var(--secondary) / 0.92));
+    background-image: linear-gradient(180deg, hsl(var(--card) / 0.98), hsl(var(--stone) / 0.68));
     border: 1px solid hsl(var(--border));
     box-shadow: var(--shadow-elegant);
   }

@@ -6,6 +6,11 @@ let connectionsCache: ProviderConnection[] = [];
 let profilesCache: ModelProfile[] = [];
 let policiesCache: Record<string, ProjectModelPolicy> = {};
 let initialized = false;
+const listeners = new Set<() => void>();
+
+function notifyListeners() {
+  listeners.forEach(listener => listener());
+}
 
 // Initialize by loading data from server
 async function ensureInitialized(): Promise<void> {
@@ -19,12 +24,14 @@ async function ensureInitialized(): Promise<void> {
     connectionsCache = connections;
     profilesCache = profiles;
     initialized = true;
+    notifyListeners();
   } catch (error) {
     console.error('Failed to initialize model management service:', error);
     // Fall back to empty data
     connectionsCache = [];
     profilesCache = [];
     initialized = true;
+    notifyListeners();
   }
 }
 
@@ -32,8 +39,15 @@ export const modelManagementService = {
   // Async initialization
   initialize: ensureInitialized,
 
+  subscribe: (listener: () => void) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  },
+
   // Connections
-  getConnections: (): ProviderConnection[] => connectionsCache,
+  getConnections: (): ProviderConnection[] => [...connectionsCache],
 
   saveConnection: (connection: ProviderConnection): ProviderConnection => {
     const now = Date.now();
@@ -42,10 +56,11 @@ export const modelManagementService = {
     // Update local cache immediately
     const existingIndex = connectionsCache.findIndex(item => item.id === connection.id);
     if (existingIndex >= 0) {
-      connectionsCache[existingIndex] = updated;
+      connectionsCache = connectionsCache.map(item => item.id === connection.id ? updated : item);
     } else {
-      connectionsCache.push(updated);
+      connectionsCache = [...connectionsCache, updated];
     }
+    notifyListeners();
 
     // Sync to server in background
     apiClient.connections.save(connection).catch(err => {
@@ -58,6 +73,7 @@ export const modelManagementService = {
   deleteConnection: (id: string) => {
     // Update local cache immediately
     connectionsCache = connectionsCache.filter(item => item.id !== id);
+    notifyListeners();
 
     // Sync to server in background
     apiClient.connections.delete(id).catch(err => {
@@ -66,7 +82,7 @@ export const modelManagementService = {
   },
 
   // Profiles
-  getProfiles: (): ModelProfile[] => profilesCache,
+  getProfiles: (): ModelProfile[] => [...profilesCache],
 
   saveProfile: (profile: ModelProfile): ModelProfile => {
     const now = Date.now();
@@ -75,10 +91,11 @@ export const modelManagementService = {
     // Update local cache immediately
     const existingIndex = profilesCache.findIndex(item => item.id === profile.id);
     if (existingIndex >= 0) {
-      profilesCache[existingIndex] = updated;
+      profilesCache = profilesCache.map(item => item.id === profile.id ? updated : item);
     } else {
-      profilesCache.push(updated);
+      profilesCache = [...profilesCache, updated];
     }
+    notifyListeners();
 
     // Sync to server in background
     apiClient.profiles.save(profile).catch(err => {
@@ -91,6 +108,7 @@ export const modelManagementService = {
   deleteProfile: (id: string) => {
     // Update local cache immediately
     profilesCache = profilesCache.filter(item => item.id !== id);
+    notifyListeners();
 
     // Sync to server in background
     apiClient.profiles.delete(id).catch(err => {
@@ -107,6 +125,7 @@ export const modelManagementService = {
     try {
       const policy = await apiClient.policies.get(projectId);
       policiesCache[projectId] = policy;
+      notifyListeners();
       return policy;
     } catch (error) {
       console.error('Failed to load project policy:', error);
@@ -119,6 +138,7 @@ export const modelManagementService = {
 
     // Update local cache immediately
     policiesCache[policy.projectId] = updated;
+    notifyListeners();
 
     // Sync to server in background
     apiClient.policies.save(policy.projectId, {

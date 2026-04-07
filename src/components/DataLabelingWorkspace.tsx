@@ -176,7 +176,7 @@ const DataLabelingWorkspace = () => {
   // Redirect if project not found
   useEffect(() => {
     if (projectNotFound) {
-      navigate('/');
+      navigate('/app');
     }
   }, [projectNotFound, navigate]);
 
@@ -358,6 +358,22 @@ const DataLabelingWorkspace = () => {
   // XML Annotation Config State
   const [annotationConfig, setAnnotationConfig] = useState<AnnotationConfig | null>(null);
   const [annotationFieldValuesMap, setAnnotationFieldValuesMap] = useState<Record<string, Record<string, string | boolean>>>({});
+  const syncModelManagementState = useCallback(() => {
+    setProviderConnections(modelManagementService.getConnections());
+    setModelProfiles(modelManagementService.getProfiles());
+    if (!projectId) {
+      setProjectModelPolicy(null);
+      return;
+    }
+    const policy = modelManagementService.getProjectPolicy(projectId);
+    setProjectModelPolicy(policy);
+    setSelectedModels(prev => {
+      if (prev.length > 0 || !policy?.defaultModelProfileIds?.length) {
+        return prev;
+      }
+      return policy.defaultModelProfileIds;
+    });
+  }, [projectId]);
 
 
   const dataPointsRef = useRef<DataPoint[]>(dataPoints);
@@ -554,11 +570,11 @@ const DataLabelingWorkspace = () => {
 
   if (accessDenied) {
     return (
-      <div className="min-h-screen bg-background p-6">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
+      <div className="app-page p-6">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <BrandLogo className="brand-tile h-10 w-10 rounded-xl p-1.5" />
+              <BrandLogo className="brand-tile h-10 w-10 rounded-[0.9rem] p-1.5" />
               <div>
                 <h1 className="text-xl font-semibold text-foreground">{t("workspace.accessDenied")}</h1>
                 <p className="text-sm text-muted-foreground">{t("workspace.notAssigned")}</p>
@@ -567,12 +583,12 @@ const DataLabelingWorkspace = () => {
             <ThemeToggle />
             <UserMenu />
           </div>
-          <Card className="p-6">
+          <Card className="rounded-[1.75rem] p-6">
             <p className="text-sm text-muted-foreground">
               {t("workspace.askAdmin")}
             </p>
             <div className="mt-4 flex gap-2">
-              <Button variant="outline" onClick={() => navigate('/')}>
+              <Button variant="outline" onClick={() => navigate('/app')}>
                 {t("workspace.backToDashboard")}
               </Button>
             </div>
@@ -589,18 +605,9 @@ const DataLabelingWorkspace = () => {
   }, []);
 
   useEffect(() => {
-    const connections = modelManagementService.getConnections();
-    const profiles = modelManagementService.getProfiles();
-    setProviderConnections(connections);
-    setModelProfiles(profiles);
-    if (projectId) {
-      const policy = modelManagementService.getProjectPolicy(projectId);
-      setProjectModelPolicy(policy);
-      if (selectedModels.length === 0 && policy?.defaultModelProfileIds?.length) {
-        setSelectedModels(policy.defaultModelProfileIds);
-      }
-    }
-  }, [projectId, selectedModels.length]);
+    syncModelManagementState();
+    return modelManagementService.subscribe(syncModelManagementState);
+  }, [syncModelManagementState]);
 
   // Load annotation config — priority: project.xmlConfig → localStorage → default
   useEffect(() => {
@@ -2417,12 +2424,12 @@ const DataLabelingWorkspace = () => {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen bg-background">
+      <div className="app-page flex h-screen">
 
         {/* Keyboard Shortcuts Overlay */}
         {showShortcuts && (
           <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm">
-            <Card className="p-6 max-w-lg animate-scale-in">
+            <Card className="max-w-lg rounded-[1.75rem] p-6 animate-scale-in">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Keyboard className="w-5 h-5" />
                 {t("workspace.keyboardShortcuts")}
@@ -2472,13 +2479,13 @@ const DataLabelingWorkspace = () => {
           </div>
         )}
         {/* Header */}
-        <div className="absolute top-0 left-0 right-0 z-10 border-b border-border bg-card px-4 py-2.5">
+        <div className="surface-card absolute left-4 right-4 top-3 z-10 rounded-[1.75rem] border border-border/70 px-4 py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             {/* ── Left: nav + title ── */}
             <div className="flex items-center gap-2 min-w-0">
               <Button
                 variant="ghost" size="icon" className="h-8 w-8 shrink-0"
-                onClick={() => viewMode === 'record' ? setViewMode('list') : navigate('/')}
+                onClick={() => viewMode === 'record' ? setViewMode('list') : navigate('/app')}
               >
                 {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
               </Button>
@@ -2736,7 +2743,7 @@ const DataLabelingWorkspace = () => {
                       </div>
 
                       {canProcessAI && (
-                        <Button variant="outline" onClick={() => navigate('/model-management')}>
+                        <Button variant="outline" onClick={() => navigate('/app/model-management')}>
                           {t("workspace.manageModelProfiles")}
                         </Button>
                       )}
@@ -2839,7 +2846,7 @@ const DataLabelingWorkspace = () => {
                                 <Badge
                                   key={col}
                                   variant="secondary"
-                                  className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                                  className="cursor-pointer transition-colors hover:bg-secondary/80"
                                   onClick={() => setUploadPrompt(prev => `${prev} {{${col}}}`)}
                                 >
                                   {col}
@@ -3106,7 +3113,7 @@ const DataLabelingWorkspace = () => {
                           <span className="text-xs text-muted-foreground">{t("workspace.hfDatasetDesc")}</span>
                         </div>
                       </Button>
-                      <Button variant="outline" className="justify-start h-auto py-4 px-4 border-purple-200 bg-purple-50/50 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/20 dark:hover:bg-purple-900/40" onClick={() => {
+                      <Button variant="outline" className="h-auto justify-start px-4 py-4" onClick={() => {
                         setShowExportDialog(false);
                         setShowHFDialog(true);
                       }}>
@@ -3211,7 +3218,7 @@ const DataLabelingWorkspace = () => {
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
-                        <Check className="w-5 h-5 text-green-500" />
+                        <Check className="w-5 h-5 text-foreground" />
                         {t("workspace.publishedSuccessfully")}
                       </DialogTitle>
                       <DialogDescription>
@@ -3275,7 +3282,7 @@ const DataLabelingWorkspace = () => {
                       <DialogTitle className="flex items-center gap-2 text-center">
                         <Trophy className="w-6 h-6 text-yellow-500" />
                         {t("workspace.congratulations")}
-                        <PartyPopper className="w-6 h-6 text-purple-500" />
+                        <PartyPopper className="w-6 h-6 text-foreground" />
                       </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-6 text-center">
@@ -3283,7 +3290,7 @@ const DataLabelingWorkspace = () => {
                       <div className="space-y-4">
                         <div className="text-6xl">🎉</div>
                         <div className="space-y-2">
-                          <p className="text-lg font-semibold text-green-600">
+                          <p className="text-lg font-semibold text-foreground">
                             {t("workspace.hundredPercent")}
                           </p>
                           <p className="text-muted-foreground">
@@ -3293,9 +3300,9 @@ const DataLabelingWorkspace = () => {
                       </div>
 
                       {/* Session Summary */}
-                      <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+                      <div className="surface-warm grid grid-cols-2 gap-4 rounded-[1.25rem] p-4">
                         <div className="text-center">
-                          <div className="text-lg font-bold text-green-600">{annotationStats.totalAccepted}</div>
+                          <div className="text-lg font-bold text-foreground">{annotationStats.totalAccepted}</div>
                           <div className="text-xs text-muted-foreground">{t("workspace.accepted")}</div>
                         </div>
                         <div className="text-center">
@@ -3303,11 +3310,11 @@ const DataLabelingWorkspace = () => {
                           <div className="text-xs text-muted-foreground">{t("workspace.edited")}</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-lg font-bold text-blue-600">{formatTime(annotationStats.sessionTime)}</div>
+                          <div className="text-lg font-bold text-foreground">{formatTime(annotationStats.sessionTime)}</div>
                           <div className="text-xs text-muted-foreground">{t("workspace.time")}</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-lg font-bold text-purple-600">{getAnnotationRate()}/hr</div>
+                          <div className="text-lg font-bold text-foreground">{getAnnotationRate()}/hr</div>
                           <div className="text-xs text-muted-foreground">{t("workspace.rate")}</div>
                         </div>
                       </div>
@@ -3354,7 +3361,7 @@ const DataLabelingWorkspace = () => {
                 </Dialog>
 
         {/* Main Content */}
-        <div className="flex-1 px-4 pb-6 pt-28 sm:px-6 sm:pt-16 lg:px-8">
+        <div className="flex-1 px-4 pb-6 pt-32 sm:px-6 sm:pt-20 lg:px-8">
           {dataPoints.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <div className="w-full max-w-4xl space-y-6">
@@ -3366,9 +3373,9 @@ const DataLabelingWorkspace = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className="p-6">
+                  <Card className="rounded-[1.75rem] p-6">
                     <div className="text-center space-y-4">
-                      <div className="w-16 h-16 rounded-xl bg-muted mx-auto flex items-center justify-center">
+                      <div className="surface-warm mx-auto flex h-16 w-16 items-center justify-center rounded-full">
                         {isUploading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Upload className="w-8 h-8" />}
                       </div>
                       <div>
@@ -3393,9 +3400,9 @@ const DataLabelingWorkspace = () => {
                     </div>
                   </Card>
 
-                  <Card className="p-6">
+                  <Card className="rounded-[1.75rem] p-6">
                     <div className="text-center space-y-4">
-                      <div className="w-16 h-16 rounded-xl bg-muted mx-auto flex items-center justify-center">
+                      <div className="surface-warm mx-auto flex h-16 w-16 items-center justify-center rounded-full">
                         {isImportingHF ? <Loader2 className="w-8 h-8 animate-spin" /> : <Database className="w-8 h-8" />}
                       </div>
                       <div>
@@ -3427,25 +3434,25 @@ const DataLabelingWorkspace = () => {
 
                 {/* Setup checklist */}
                 {canUpload && (
-                  <div className="rounded-lg border bg-muted/30 px-5 py-4">
+                  <div className="surface-warm rounded-[1.5rem] border border-border/70 px-5 py-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">{t("workspace.projectSetupChecklist")}</p>
                     <ol className="space-y-2 text-sm">
                       <li className="flex items-center gap-2.5">
-                        <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold flex-shrink-0">1</span>
+                        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
                         <span className="font-medium">{t("workspace.importDataset_step")}</span>
                         <span className="text-muted-foreground">{t("workspace.youAreHere")}</span>
                       </li>
                       <li className="flex items-center gap-2.5 text-muted-foreground">
                         <span className="w-5 h-5 rounded-full border text-xs flex items-center justify-center font-bold flex-shrink-0">2</span>
                         <span>{t("workspace.configAnnotationForm")}</span>
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => navigate(`/projects/${projectId}/settings`)}>
+                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => navigate(`/app/projects/${projectId}/settings`)}>
                           {t("workspace.goToSettings")}
                         </Button>
                       </li>
                       <li className="flex items-center gap-2.5 text-muted-foreground">
                         <span className="w-5 h-5 rounded-full border text-xs flex items-center justify-center font-bold flex-shrink-0">3</span>
                         <span>{t("workspace.addAnnotators")}</span>
-                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => navigate(`/projects/${projectId}/settings`)}>
+                        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => navigate(`/app/projects/${projectId}/settings`)}>
                           {t("workspace.goToSettings")}
                         </Button>
                       </li>
@@ -3464,7 +3471,7 @@ const DataLabelingWorkspace = () => {
                     <div className="flex flex-col gap-4 xl:flex-row">
                       {/* Main Content */}
                       <div className="flex-1">
-                        <Card className="min-h-full p-6">
+                        <Card className="min-h-full rounded-[1.75rem] p-6">
                           <div className="space-y-6">
                             <div className="flex items-center justify-between">
                               <h2 className="text-lg font-semibold">{t("workspace.dataPoint")}</h2>
@@ -3478,7 +3485,7 @@ const DataLabelingWorkspace = () => {
                               })()}
                             </div>
 
-                            <div className="bg-muted/50 p-4 rounded-lg">
+                            <div className="surface-warm rounded-[1.5rem] p-4">
                               <Label className="text-sm font-medium">{t("workspace.originalContent")}</Label>
                               {currentDataPoint?.type === 'image' ? (
                                 <div className="mt-2">
@@ -3508,14 +3515,14 @@ const DataLabelingWorkspace = () => {
                             </div>
 
                             {currentDataPoint?.originalAnnotation && (
-                              <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                              <div className="surface-card rounded-[1.5rem] border border-border/70 p-4">
                                 <Label className="text-sm font-medium">{annotationLabel}</Label>
                                 <p className="mt-2 text-foreground">{currentDataPoint.originalAnnotation}</p>
                               </div>
                             )}
 
                             {currentDataPoint?.uploadPrompt && (
-                              <div className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                              <div className="surface-warm rounded-[1.5rem] border border-border/70 p-4">
                                 <Label className="text-sm font-medium">{promptLabel}</Label>
                                 <p className="mt-2 text-foreground text-sm italic">
                                   {getInterpolatedPrompt(currentDataPoint.uploadPrompt, currentDataPoint.metadata)}
@@ -3526,7 +3533,7 @@ const DataLabelingWorkspace = () => {
                             {/* Model Arena - Display suggestions from all providers */}
                             <div className="space-y-4">
                               <div className="flex items-center gap-2">
-                                <Bot className="w-5 h-5 text-purple-600" />
+                                <Bot className="w-5 h-5 text-foreground" />
                                 <h3 className="font-semibold">{t("workspace.modelArena")}</h3>
                               </div>
 
@@ -3546,7 +3553,7 @@ const DataLabelingWorkspace = () => {
                                     || modelProfileId;
 
                                   return (
-                                    <Card key={modelProfileId} className="p-4 border-purple-200 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-950/10 transition-all hover:shadow-md">
+                                    <Card key={modelProfileId} className="rounded-[1.5rem] border-border/70 p-4 transition-all hover:-translate-y-0.5">
                                       <div className="flex items-center justify-between mb-3">
                                         <Badge variant="outline" className="bg-background">
                                           {displayName}
@@ -3576,7 +3583,7 @@ const DataLabelingWorkspace = () => {
                                       <p className="text-sm text-foreground whitespace-pre-wrap mb-3">{suggestion}</p>
 
                                       {/* Star Rating */}
-                                      <div className="flex items-center gap-2 pt-2 border-t border-purple-200 dark:border-purple-800">
+                                      <div className="flex items-center gap-2 border-t border-border/70 pt-2">
                                         <span className="text-xs text-muted-foreground">{t("workspace.rateOutput")}</span>
                                         <div className="flex items-center">
                                           {[1, 2, 3, 4, 5].map((star) => (
@@ -3600,7 +3607,7 @@ const DataLabelingWorkspace = () => {
                                 })}
 
                                 {/* Human Annotation Card - Now using Dynamic Form */}
-                                <Card className="p-4 border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-950/10 transition-all hover:shadow-md">
+                                <Card className="rounded-[1.5rem] border-border/70 p-4 transition-all hover:-translate-y-0.5">
                                   <div className="flex items-center justify-between mb-3">
                                     <Badge variant="outline" className="bg-background flex items-center gap-1">
                                       <User className="w-3 h-3" />
@@ -3641,7 +3648,6 @@ const DataLabelingWorkspace = () => {
                                               .join('\n') || 'Submitted';
                                             handleAcceptAnnotation(annotation, annotatorMeta);
                                           }}
-                                          className="bg-green-600 hover:bg-green-700"
                                           disabled={!canAnnotateCurrent ||
                                             (annotationConfig?.fields.some(field =>
                                               field.required &&
@@ -3674,7 +3680,7 @@ const DataLabelingWorkspace = () => {
 
                             {/* Edit Mode Area */}
                             {isEditMode && (
-                              <div className="bg-background p-4 rounded-lg border-2 border-primary animate-in fade-in zoom-in-95 duration-200">
+                              <div className="surface-card rounded-[1.5rem] border border-border/70 p-4 animate-in fade-in zoom-in-95 duration-200">
                                 <Label className="text-sm font-medium mb-2 block">{t("workspace.editAnnotation")}</Label>
                                 <Textarea
                                   value={tempAnnotation}
@@ -3697,16 +3703,16 @@ const DataLabelingWorkspace = () => {
 
                             {/* Final Annotation Display */}
                             {getVisibleFinalAnnotation(currentDataPoint) && !isEditMode && (
-                              <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800 animate-in fade-in slide-in-from-bottom-2">
+                              <div className="surface-warm rounded-[1.5rem] border border-border/70 p-4 animate-in fade-in slide-in-from-bottom-2">
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
-                                    <CheckCircle className="w-4 h-4 text-green-700 dark:text-green-300" />
-                                    <Label className="text-sm font-medium text-green-700 dark:text-green-300">{t("workspace.finalSelectedAnnotation")}</Label>
+                                    <CheckCircle className="w-4 h-4 text-foreground" />
+                                    <Label className="text-sm font-medium">{t("workspace.finalSelectedAnnotation")}</Label>
                                   </div>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-6 text-xs text-green-700 hover:text-green-800 hover:bg-green-100"
+                                    className="h-6 text-xs"
                                     onClick={() => handleEditAnnotation(getVisibleFinalAnnotation(currentDataPoint))}
                                     disabled={!canAnnotateCurrent}
                                   >
@@ -3719,9 +3725,9 @@ const DataLabelingWorkspace = () => {
                             )}
 
                             {isAnnotatorForProject && currentDataPoint && (annotatorCanViewCompleted || (!currentDataPoint.isIAA && getDoneCount(currentDataPoint) > 0)) && (
-                              <div className="bg-slate-50 dark:bg-slate-950/20 p-4 rounded-lg border border-slate-200 dark:border-slate-800">
+                              <div className="surface-card rounded-[1.5rem] border border-border/70 p-4">
                                 <div className="flex items-center gap-2 mb-3">
-                                  <CheckCircle className="w-4 h-4 text-slate-600" />
+                                  <CheckCircle className="w-4 h-4 text-foreground" />
                                   <Label className="text-sm font-medium">{t("workspace.completedAnnotations")}</Label>
                                 </div>
                                 <div className="space-y-2">
@@ -3754,10 +3760,10 @@ const DataLabelingWorkspace = () => {
                             )}
 
                             {canViewIaaDetails && currentDataPoint?.isIAA && (
-                              <div className="bg-slate-50 dark:bg-slate-950/20 p-4 rounded-lg border border-slate-200 dark:border-slate-800">
+                              <div className="surface-card rounded-[1.5rem] border border-border/70 p-4">
                                 <div className="flex items-center justify-between mb-3">
                                   <div className="flex items-center gap-2">
-                                    <Target className="w-4 h-4 text-slate-600" />
+                                    <Target className="w-4 h-4 text-foreground" />
                                     <Label className="text-sm font-medium">{t("workspace.iaaAnnotationDetails")}</Label>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -3800,7 +3806,7 @@ const DataLabelingWorkspace = () => {
                             )}
 
                             {currentDataPoint?.customFieldName && (
-                              <div className="bg-cyan-50 dark:bg-cyan-950/20 p-4 rounded-lg border border-cyan-200 dark:border-cyan-800">
+                              <div className="surface-card rounded-[1.5rem] border border-border/70 p-4">
                                 <Label className="text-sm font-medium">{currentDataPoint.customFieldName}</Label>
                                 <Textarea
                                   value={currentDataPoint.customField || ''}
@@ -3828,13 +3834,13 @@ const DataLabelingWorkspace = () => {
                       {/* Stacked sidebar column — fixed header rows, content expands below */}
                       {isMobile ? (
                         <div className="space-y-4">
-                          <div className="overflow-hidden rounded-lg border border-border bg-card">
+                          <div className="surface-card overflow-hidden rounded-[1.5rem] border border-border/70 bg-card">
                             <button
-                              className="flex h-10 w-full items-center gap-2 border-b border-border/50 px-3 hover:bg-muted/50 disabled:opacity-40"
+                              className="flex h-10 w-full items-center gap-2 border-b border-border/50 px-3 hover:bg-secondary/80 disabled:opacity-40"
                               onClick={() => setShowGuidelinesSidebar(v => !v)}
                               disabled={!projectId}
                             >
-                              <Book className="w-4 h-4 shrink-0 text-purple-500" />
+                              <Book className="w-4 h-4 shrink-0 text-foreground" />
                               <span className="flex-1 truncate text-start text-xs font-semibold">{t("workspace.projectGuidelines")}</span>
                               {showGuidelinesSidebar
                                 ? <ChevronUp className="w-3 h-3 shrink-0 text-muted-foreground" />
@@ -3846,9 +3852,9 @@ const DataLabelingWorkspace = () => {
                           </div>
 
                           {!!(currentDataPoint?.displayMetadata && Object.keys(currentDataPoint.displayMetadata).length > 0) && (
-                            <div className="overflow-hidden rounded-lg border border-border bg-card">
+                            <div className="surface-card overflow-hidden rounded-[1.5rem] border border-border/70 bg-card">
                               <button
-                                className="flex h-10 w-full items-center gap-2 border-b border-border/50 px-3 hover:bg-muted/50"
+                                className="flex h-10 w-full items-center gap-2 border-b border-border/50 px-3 hover:bg-secondary/80"
                                 onClick={() => setShowMetadataSidebar(v => !v)}
                               >
                                 <FileText className="w-4 h-4 shrink-0 text-muted-foreground" />
@@ -3867,14 +3873,14 @@ const DataLabelingWorkspace = () => {
                         const isWide = showGuidelinesSidebar || showMetadataSidebar;
                         const hasMetadata = !!(currentDataPoint?.displayMetadata && Object.keys(currentDataPoint.displayMetadata).length > 0);
                         return (
-                          <div className={`flex-shrink-0 flex flex-col transition-all duration-300 border border-border rounded-lg overflow-hidden bg-card ${isWide ? 'w-72' : 'w-10'}`}>
+                          <div className={`surface-card flex flex-shrink-0 flex-col overflow-hidden rounded-[1.5rem] border border-border/70 bg-card transition-all duration-300 ${isWide ? 'w-72' : 'w-10'}`}>
                             {/* Guidelines header row — always visible, never moves */}
                             <button
-                              className="flex items-center gap-2 h-10 px-3 hover:bg-muted/50 border-b border-border/50 w-full shrink-0 disabled:opacity-40"
+                              className="flex h-10 w-full shrink-0 items-center gap-2 border-b border-border/50 px-3 hover:bg-secondary/80 disabled:opacity-40"
                               onClick={() => setShowGuidelinesSidebar(v => !v)}
                               disabled={!projectId}
                             >
-                              <Book className="w-4 h-4 shrink-0 text-purple-500" />
+                              <Book className="w-4 h-4 shrink-0 text-foreground" />
                               {isWide && <span className="text-xs font-semibold flex-1 text-start truncate">{t("workspace.projectGuidelines")}</span>}
                               {showGuidelinesSidebar
                                 ? <ChevronUp className="w-3 h-3 shrink-0 text-muted-foreground" />
@@ -3889,7 +3895,7 @@ const DataLabelingWorkspace = () => {
                             {hasMetadata && (
                               <>
                                 <button
-                                  className="flex items-center gap-2 h-10 px-3 hover:bg-muted/50 border-b border-border/50 w-full shrink-0"
+                                  className="flex h-10 w-full shrink-0 items-center gap-2 border-b border-border/50 px-3 hover:bg-secondary/80"
                                   onClick={() => setShowMetadataSidebar(v => !v)}
                                 >
                                   <FileText className="w-4 h-4 shrink-0 text-muted-foreground" />
@@ -3908,9 +3914,9 @@ const DataLabelingWorkspace = () => {
                         );
                       })()}
                     </div>
-                    <Card className="p-6 mt-4 space-y-3">
+                    <Card className="mt-4 rounded-[1.75rem] p-6 space-y-3">
                       <div className="flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-blue-500" />
+                        <MessageSquare className="w-4 h-4 text-foreground" />
                         <Label className="text-sm font-medium">{t("workspace.comments")}</Label>
                       </div>
 
@@ -3939,7 +3945,7 @@ const DataLabelingWorkspace = () => {
                           <p className="text-xs text-muted-foreground">{t("workspace.noComments")}</p>
                         ) : (
                           comments.map(comment => (
-                            <div key={comment.id} className="rounded-md border border-border/70 bg-muted/30 p-3 space-y-2">
+                            <div key={comment.id} className="surface-card space-y-2 rounded-[1rem] border border-border/70 p-3">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="min-w-0">
                                   <p className="text-xs font-medium truncate">{comment.authorName}</p>
@@ -4029,7 +4035,7 @@ const DataLabelingWorkspace = () => {
                     </Card>
                     </>
                   ) : (
-                    <Card className="p-6">
+                    <Card className="rounded-[1.75rem] p-6">
                       <div className="flex flex-col gap-4 min-w-0">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div>
@@ -4182,7 +4188,7 @@ const DataLabelingWorkspace = () => {
                                 {metadataFilterOptions.map(({ key, values }) => {
                                   const selectedValues = metadataFilters[key] || [];
                                   return (
-                                    <div key={key} className="rounded-lg border border-border/60 p-3">
+                                    <div key={key} className="surface-card rounded-[1.25rem] border border-border/70 p-3">
                                       <div className="flex items-start justify-between gap-2">
                                         <div>
                                           <Label className="text-xs text-muted-foreground">{key}</Label>
@@ -4275,7 +4281,7 @@ const DataLabelingWorkspace = () => {
                           }
                         >
                           {paginatedAnnotationEntries.length === 0 ? (
-                            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                            <div className="rounded-[1.5rem] border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                               {t("workspace.noAnnotationsMatch")}
                             </div>
                           ) : (
@@ -4286,8 +4292,8 @@ const DataLabelingWorkspace = () => {
                                   key={dataPoint.id}
                                   className={
                                     listLayout === 'grid'
-                                      ? "flex h-full w-full min-w-0 cursor-pointer flex-col gap-3 rounded-lg border border-border/60 bg-background p-4 transition hover:bg-muted/40 text-start overflow-hidden"
-                                      : "flex w-full min-w-0 cursor-pointer flex-col sm:flex-row sm:items-center sm:gap-4 rounded-lg border border-border/60 bg-background p-4 transition hover:bg-muted/40 text-start overflow-hidden"
+                                      ? "surface-card flex h-full w-full min-w-0 cursor-pointer flex-col gap-3 overflow-hidden rounded-[1.5rem] border border-border/70 bg-background p-4 text-start transition hover:-translate-y-0.5"
+                                      : "surface-card flex w-full min-w-0 cursor-pointer flex-col overflow-hidden rounded-[1.5rem] border border-border/70 bg-background p-4 text-start transition hover:-translate-y-0.5 sm:flex-row sm:items-center sm:gap-4"
                                   }
                                   onClick={() => {
                                     setCurrentIndex(index);
@@ -4517,34 +4523,34 @@ const DataLabelingWorkspace = () => {
 
                         <div className="space-y-4">
                           <div className="grid grid-cols-2 gap-3">
-                            <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                              <div className="text-lg font-bold text-green-600">{globalCompletedCount}</div>
+                            <div className="surface-warm rounded-[1.25rem] border border-border/70 p-3 text-center">
+                              <div className="text-lg font-bold text-foreground">{globalCompletedCount}</div>
                               <div className="text-xs text-muted-foreground">{t("workspace.completed_stat")}</div>
                             </div>
-                            <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                              <div className="text-lg font-bold text-blue-600">{globalRemainingCount}</div>
+                            <div className="surface-card rounded-[1.25rem] border border-border/70 p-3 text-center">
+                              <div className="text-lg font-bold text-foreground">{globalRemainingCount}</div>
                               <div className="text-xs text-muted-foreground">{t("workspace.remaining")}</div>
                             </div>
                           </div>
 
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                            <div className="surface-card flex items-center justify-between rounded-[1rem] p-2">
                               <span className="text-xs">{t("workspace.accepted")}</span>
                               <span className="text-xs font-medium">{annotationStats.totalAccepted}</span>
                             </div>
-                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                            <div className="surface-card flex items-center justify-between rounded-[1rem] p-2">
                               <span className="text-xs">{t("workspace.edited")}</span>
                               <span className="text-xs font-medium">{annotationStats.totalEdited}</span>
                             </div>
-                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                            <div className="surface-card flex items-center justify-between rounded-[1rem] p-2">
                               <span className="text-xs">{t("workspace.aiProcessed")}</span>
                               <span className="text-xs font-medium">{annotationStats.totalProcessed}</span>
                             </div>
-                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                            <div className="surface-card flex items-center justify-between rounded-[1rem] p-2">
                               <span className="text-xs">{t("workspace.sessionTime")}</span>
                               <span className="text-xs font-medium">{formatTime(annotationStats.sessionTime)}</span>
                             </div>
-                            <div className="flex items-center justify-between rounded bg-muted/30 p-2">
+                            <div className="surface-card flex items-center justify-between rounded-[1rem] p-2">
                               <span className="text-xs">{t("workspace.ratePerHour")}</span>
                               <span className="text-xs font-medium">{getAnnotationRate()}</span>
                             </div>
@@ -4564,22 +4570,22 @@ const DataLabelingWorkspace = () => {
                     ) : (
                       <div className="mt-6 space-y-6">
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                            <div className="text-lg font-bold text-green-600">{globalCompletedCount}</div>
+                          <div className="surface-warm rounded-[1.25rem] border border-border/70 p-3 text-center">
+                            <div className="text-lg font-bold text-foreground">{globalCompletedCount}</div>
                             <div className="text-xs text-muted-foreground">{t("workspace.completed_stat")}</div>
                           </div>
-                          <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                            <div className="text-lg font-bold text-blue-600">{globalRemainingCount}</div>
+                          <div className="surface-card rounded-[1.25rem] border border-border/70 p-3 text-center">
+                            <div className="text-lg font-bold text-foreground">{globalRemainingCount}</div>
                             <div className="text-xs text-muted-foreground">{t("workspace.remaining")}</div>
                           </div>
                         </div>
 
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between rounded bg-muted/30 p-2 text-xs">
+                          <div className="surface-card flex items-center justify-between rounded-[1rem] p-2 text-xs">
                             <span>{t("workspace.filteredItems")}</span>
                             <span className="font-medium">{globalFilteredCount}</span>
                           </div>
-                          <div className="flex items-center justify-between rounded bg-muted/30 p-2 text-xs">
+                          <div className="surface-card flex items-center justify-between rounded-[1rem] p-2 text-xs">
                             <span>{t("workspace.totalItems")}</span>
                             <span className="font-medium">{globalTotalItems}</span>
                           </div>
@@ -4667,7 +4673,7 @@ const DataLabelingWorkspace = () => {
                   <Card className="p-6 space-y-6 sticky top-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-purple-500" />
+                        <Sparkles className="w-5 h-5 text-foreground" />
                         <h3 className="font-semibold">{t("workspace.actionsPanel")}</h3>
                       </div>
                       <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => setShowRightSidebar(false)} title="Collapse sidebar">
@@ -4734,33 +4740,33 @@ const DataLabelingWorkspace = () => {
                     {/* Comprehensive Statistics */}
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
-                        <BarChart3 className="w-4 h-4 text-blue-500" />
+                        <BarChart3 className="w-4 h-4 text-foreground" />
                         <Label className="text-sm font-medium">{t("workspace.sessionStatistics")}</Label>
                       </div>
 
                       {/* Progress Overview */}
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                          <div className="text-lg font-bold text-green-600">{globalCompletedCount}</div>
+                        <div className="surface-warm rounded-[1.25rem] border border-border/70 p-3 text-center">
+                          <div className="text-lg font-bold text-foreground">{globalCompletedCount}</div>
                           <div className="text-xs text-muted-foreground">{t("workspace.completed_stat")}</div>
                         </div>
-                        <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                          <div className="text-lg font-bold text-blue-600">{globalRemainingCount}</div>
+                        <div className="surface-card rounded-[1.25rem] border border-border/70 p-3 text-center">
+                          <div className="text-lg font-bold text-foreground">{globalRemainingCount}</div>
                           <div className="text-xs text-muted-foreground">{t("workspace.remaining")}</div>
                         </div>
                       </div>
 
                       {/* Detailed Stats */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                        <div className="surface-card flex items-center justify-between rounded-[1rem] p-2">
                           <div className="flex items-center gap-2 text-xs">
-                            <CheckCircle className="w-3 h-3 text-green-600" />
+                            <CheckCircle className="w-3 h-3 text-foreground" />
                             <span>{t("workspace.accepted")}</span>
                           </div>
                           <span className="text-xs font-medium">{annotationStats.totalAccepted}</span>
                         </div>
 
-                        <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                        <div className="surface-card flex items-center justify-between rounded-[1rem] p-2">
                           <div className="flex items-center gap-2 text-xs">
                             <Edit className="w-3 h-3 text-orange-600" />
                             <span>{t("workspace.edited")}</span>
@@ -4768,9 +4774,9 @@ const DataLabelingWorkspace = () => {
                           <span className="text-xs font-medium">{annotationStats.totalEdited}</span>
                         </div>
 
-                        <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                        <div className="surface-card flex items-center justify-between rounded-[1rem] p-2">
                           <div className="flex items-center gap-2 text-xs">
-                            <Zap className="w-3 h-3 text-purple-600" />
+                            <Zap className="w-3 h-3 text-foreground" />
                             <span>{t("workspace.aiProcessed")}</span>
                           </div>
                           <span className="text-xs font-medium">{annotationStats.totalProcessed}</span>
@@ -4779,17 +4785,17 @@ const DataLabelingWorkspace = () => {
 
                       {/* Performance Metrics */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
+                        <div className="surface-card flex items-center justify-between rounded-[1rem] border border-border/70 p-2">
                           <div className="flex items-center gap-2 text-xs">
-                            <Clock className="w-3 h-3 text-blue-600" />
+                            <Clock className="w-3 h-3 text-foreground" />
                             <span>{t("workspace.sessionTime")}</span>
                           </div>
                           <span className="text-xs font-medium">{formatTime(annotationStats.sessionTime)}</span>
                         </div>
 
-                        <div className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-950/20 rounded border border-green-200 dark:border-green-800">
+                        <div className="surface-warm flex items-center justify-between rounded-[1rem] border border-border/70 p-2">
                           <div className="flex items-center gap-2 text-xs">
-                            <TrendingUp className="w-3 h-3 text-green-600" />
+                            <TrendingUp className="w-3 h-3 text-foreground" />
                             <span>{t("workspace.ratePerHour")}</span>
                           </div>
                           <span className="text-xs font-medium">{getAnnotationRate()}</span>
@@ -4813,7 +4819,7 @@ const DataLabelingWorkspace = () => {
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setShowRightSidebar(true)} title="Expand sidebar">
                         {isRTL ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                       </Button>
-                      <Sparkles className="w-4 h-4 text-purple-400 opacity-60" />
+                      <Sparkles className="w-4 h-4 text-muted-foreground opacity-60" />
                     </div>
                   )}
                 </div>
@@ -4823,7 +4829,7 @@ const DataLabelingWorkspace = () => {
                   <Card className="p-6 space-y-6 sticky top-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <BarChart3 className="w-4 h-4 text-blue-500" />
+                        <BarChart3 className="w-4 h-4 text-foreground" />
                         <Label className="text-sm font-medium">{t("workspace.listOverview")}</Label>
                       </div>
                       <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => setShowRightSidebar(false)} title="Collapse sidebar">
@@ -4832,22 +4838,22 @@ const DataLabelingWorkspace = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                        <div className="text-lg font-bold text-green-600">{globalCompletedCount}</div>
+                      <div className="surface-warm rounded-[1.25rem] border border-border/70 p-3 text-center">
+                        <div className="text-lg font-bold text-foreground">{globalCompletedCount}</div>
                         <div className="text-xs text-muted-foreground">{t("workspace.completed_stat")}</div>
                       </div>
-                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <div className="text-lg font-bold text-blue-600">{globalRemainingCount}</div>
+                      <div className="surface-card rounded-[1.25rem] border border-border/70 p-3 text-center">
+                        <div className="text-lg font-bold text-foreground">{globalRemainingCount}</div>
                         <div className="text-xs text-muted-foreground">{t("workspace.remaining")}</div>
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between p-2 bg-muted/30 rounded text-xs">
+                      <div className="surface-card flex items-center justify-between rounded-[1rem] p-2 text-xs">
                         <span>{t("workspace.filteredItems")}</span>
                         <span className="font-medium">{globalFilteredCount}</span>
                       </div>
-                      <div className="flex items-center justify-between p-2 bg-muted/30 rounded text-xs">
+                      <div className="surface-card flex items-center justify-between rounded-[1rem] p-2 text-xs">
                         <span>{t("workspace.totalItems")}</span>
                         <span className="font-medium">{globalTotalItems}</span>
                       </div>
@@ -4931,7 +4937,7 @@ const DataLabelingWorkspace = () => {
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setShowRightSidebar(true)} title="Expand sidebar">
                         {isRTL ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                       </Button>
-                      <BarChart3 className="w-4 h-4 text-blue-400 opacity-60" />
+                      <BarChart3 className="w-4 h-4 text-muted-foreground opacity-60" />
                     </div>
                   )}
                 </div>

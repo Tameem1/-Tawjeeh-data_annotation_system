@@ -27,7 +27,9 @@ export const UserMenu = () => {
   const [changeError, setChangeError] = useState("");
 
   const mustChangePassword = !!currentUser?.mustChangePassword;
-  const roleLabel = currentUser?.roles?.includes("admin")
+  const roleLabel = currentUser?.roles?.includes("super_admin")
+    ? t("dashboard.roles.super_admin")
+    : currentUser?.roles?.includes("admin")
     ? t("dashboard.roles.admin")
     : currentUser?.roles?.includes("manager")
     ? t("dashboard.roles.manager")
@@ -69,7 +71,7 @@ export const UserMenu = () => {
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
               <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full p-0">
-                <span className="bg-brand-gradient flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold text-white">
+                <span className="surface-warm flex h-8 w-8 items-center justify-center rounded-full border border-border/70 text-[11px] font-semibold text-foreground">
                   {initials}
                 </span>
               </Button>

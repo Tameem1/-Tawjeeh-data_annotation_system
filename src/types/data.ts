@@ -229,3 +229,86 @@ export interface AnnotatorStatsResponse {
         avgAgreementRate: number | null;
     };
 }
+
+export type SubscriptionPlan = 'monthly' | 'yearly' | 'lifetime';
+export type SubscriptionStatus = 'active' | 'expired' | 'canceled';
+export type PaymentMethod = 'cash' | 'bank_transfer' | 'card' | 'other';
+export type DemoRequestStatus = 'new' | 'contacted' | 'booked' | 'closed';
+export type EmailLogStatus = 'sent' | 'failed';
+
+export interface SubscriptionRecord {
+    id: string;
+    userId: string;
+    contactEmail: string;
+    planType: SubscriptionPlan;
+    status: SubscriptionStatus;
+    startAt: number;
+    billingAnchorAt: number;
+    expiresAt: number | null;
+    priceSnapshotCents: number;
+    notes: string;
+    updatedBy?: string | null;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface PaymentRecord {
+    id: string;
+    userId: string;
+    amountCents: number;
+    paymentMethod: PaymentMethod;
+    reference: string;
+    notes: string;
+    paidAt: number;
+    recordedBy?: string | null;
+    createdAt: number;
+}
+
+export interface SubscriptionSummary {
+    userId: string;
+    username: string;
+    roles: string[];
+    subscription: SubscriptionRecord | null;
+    payments: PaymentRecord[];
+    planPriceCents: number;
+    totalChargedCents: number;
+    totalPaidCents: number;
+    amountDueCents: number;
+    creditCents: number;
+    nextBillingDate: number | null;
+    activeAccess: boolean;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface DemoRequest {
+    id: string;
+    name: string;
+    email: string;
+    organization: string;
+    phone: string;
+    message: string;
+    status: DemoRequestStatus;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface SubscriptionEmailLog {
+    id: string;
+    userId: string;
+    subscriptionId?: string | null;
+    paymentRecordId?: string | null;
+    emailType: string;
+    recipientEmail: string;
+    resendMessageId?: string | null;
+    status: EmailLogStatus;
+    errorMessage?: string | null;
+    createdAt: number;
+    username?: string;
+}
+
+export interface BillingSettings {
+    calendlyUrl: string;
+    resendFromEmail: string;
+    billingReplyToEmail: string;
+}

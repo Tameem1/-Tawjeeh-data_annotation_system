@@ -26,8 +26,8 @@ export function NotificationBell() {
     setOpen(false);
     if (n.data?.projectId) {
       const url = n.data.dataPointId
-        ? `/project/${n.data.projectId}?dp=${n.data.dataPointId}`
-        : `/project/${n.data.projectId}`;
+        ? `/app/project/${n.data.projectId}?dp=${n.data.dataPointId}`
+        : `/app/project/${n.data.projectId}`;
       navigate(url);
     }
   };

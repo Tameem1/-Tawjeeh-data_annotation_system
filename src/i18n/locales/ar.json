@@ -82,6 +82,7 @@
     "copyInviteLink": "نسخ رابط الدعوة",
     "role": "الدور",
     "roles": {
+      "super_admin": "المدير الأعلى",
       "admin": "مدير النظام",
       "manager": "مدير مشروع",
       "annotator": "مُوسِّم"

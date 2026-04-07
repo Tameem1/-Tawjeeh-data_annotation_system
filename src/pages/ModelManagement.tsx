@@ -20,6 +20,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { SubscriptionAccessCard } from "@/components/SubscriptionAccessCard";
 
 type RuntimeModelOption = {
   id: string;
@@ -32,6 +33,7 @@ const ModelManagement = () => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
   const isManager = currentUser?.roles?.includes("manager") || currentUser?.roles?.includes("admin");
+  const isSuperAdmin = currentUser?.roles?.includes("super_admin");
 
   const [connections, setConnections] = useState<ProviderConnection[]>([]);
   const [profiles, setProfiles] = useState<ModelProfile[]>([]);
@@ -63,6 +65,10 @@ const ModelManagement = () => {
   const [remoteModelsByConnection, setRemoteModelsByConnection] = useState<Record<string, RuntimeModelOption[]>>({});
   const [isLoadingRemoteModels, setIsLoadingRemoteModels] = useState(false);
   const [remoteModelsError, setRemoteModelsError] = useState<string | null>(null);
+  const syncModelManagementState = useCallback(() => {
+    setConnections(modelManagementService.getConnections());
+    setProfiles(modelManagementService.getProfiles());
+  }, []);
   const isOfficialProvider = useCallback((providerId: string) =>
     providerId === "openai"
     || providerId === "anthropic"
@@ -78,11 +84,12 @@ const ModelManagement = () => {
 
       const loadedProjects = await projectService.getAll();
       setProjects(loadedProjects);
-      setConnections(modelManagementService.getConnections());
-      setProfiles(modelManagementService.getProfiles());
+      syncModelManagementState();
     };
+    const unsubscribe = modelManagementService.subscribe(syncModelManagementState);
     init();
-  }, []);
+    return unsubscribe;
+  }, [syncModelManagementState]);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -260,13 +267,17 @@ const ModelManagement = () => {
     }
   };
 
+  if (currentUser?.hasActiveAccess === false && !isSuperAdmin) {
+    return <SubscriptionAccessCard reason={currentUser.accessReason} onBackToHome={() => navigate("/")} />;
+  }
+
   if (!isManager) {
     return (
-      <div className="min-h-screen bg-background p-6">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
+      <div className="app-page p-6">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <BrandLogo className="brand-tile h-12 w-12 rounded-xl p-1.5" />
+              <BrandLogo className="brand-tile h-12 w-12 rounded-[1rem] p-2" />
               <div>
                 <h1 className="text-xl font-semibold text-foreground">{t("models.accessDenied")}</h1>
                 <p className="text-sm text-muted-foreground">{t("models.managerRoleRequired")}</p>
@@ -275,12 +286,12 @@ const ModelManagement = () => {
             <ThemeToggle />
             <UserMenu />
           </div>
-          <Card className="p-6">
+          <Card className="rounded-[1.75rem] p-6">
             <p className="text-sm text-muted-foreground">
               {t("models.askAdminManager")}
             </p>
             <div className="mt-4 flex gap-2">
-              <Button variant="outline" onClick={() => navigate("/")}>
+              <Button variant="outline" onClick={() => navigate("/app")}>
                 {t("models.backToDashboard")}
               </Button>
             </div>
@@ -331,7 +342,6 @@ const ModelManagement = () => {
       updatedAt: now
     };
     modelManagementService.saveConnection(connection);
-    setConnections(modelManagementService.getConnections());
     resetConnectionForm();
   };
 
@@ -347,7 +357,6 @@ const ModelManagement = () => {
 
   const handleDeleteConnection = (id: string) => {
     modelManagementService.deleteConnection(id);
-    setConnections(modelManagementService.getConnections());
   };
 
   const handleSaveProfile = () => {
@@ -371,7 +380,6 @@ const ModelManagement = () => {
       updatedAt: now
     };
     modelManagementService.saveProfile(profile);
-    setProfiles(modelManagementService.getProfiles());
     resetProfileForm();
   };
 
@@ -390,7 +398,6 @@ const ModelManagement = () => {
 
   const handleDeleteProfile = (id: string) => {
     modelManagementService.deleteProfile(id);
-    setProfiles(modelManagementService.getProfiles());
   };
 
   const handleSavePolicy = () => {
@@ -406,21 +413,22 @@ const ModelManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        <div className="flex items-center justify-between">
+    <div className="app-page p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <div className="surface-card flex flex-col gap-4 rounded-[2rem] border border-border/70 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">{t("models.title")}</h1>
-            <p className="text-sm text-muted-foreground">{t("models.pageSubtitle")}</p>
+            <p className="eyebrow">Model Governance</p>
+            <h1 className="mt-2 text-[2.5rem]">{t("models.title")}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{t("models.pageSubtitle")}</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={() => navigate("/")}>{t("models.backToDashboard")}</Button>
+            <Button variant="outline" onClick={() => navigate("/app")}>{t("models.backToDashboard")}</Button>
             <ThemeToggle />
             <UserMenu />
           </div>
         </div>
 
-        <Card className="p-6 space-y-6">
+        <Card className="rounded-[2rem] p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">{t("models.providerConnections")}</h2>
@@ -483,7 +491,7 @@ const ModelManagement = () => {
               <p className="text-sm text-muted-foreground">{t("models.noProviderConnections")}</p>
             ) : (
               connections.map(connection => (
-                <div key={connection.id} className="flex items-center justify-between border rounded-md p-3">
+                <div key={connection.id} className="surface-card flex items-center justify-between rounded-[1.25rem] border border-border/70 p-4">
                   <div>
                     <div className="font-medium">{connection.name}</div>
                     <div className="text-xs text-muted-foreground">
@@ -500,7 +508,7 @@ const ModelManagement = () => {
           </div>
         </Card>
 
-        <Card className="p-6 space-y-6">
+        <Card className="rounded-[2rem] p-6 space-y-6">
           <div>
             <h2 className="text-lg font-semibold">{t("models.modelProfiles")}</h2>
             <p className="text-xs text-muted-foreground">{t("models.bundleModel")}</p>
@@ -611,7 +619,7 @@ const ModelManagement = () => {
                 const connection = connectionLookup.get(profile.providerConnectionId);
                 const providerName = connection ? providerLookup.get(connection.providerId)?.name : "Unknown";
                 return (
-                  <div key={profile.id} className="flex items-center justify-between border rounded-md p-3">
+                  <div key={profile.id} className="surface-card flex items-center justify-between rounded-[1.25rem] border border-border/70 p-4">
                     <div>
                       <div className="font-medium">{profile.displayName}</div>
                       <div className="text-xs text-muted-foreground">
@@ -644,7 +652,7 @@ const ModelManagement = () => {
           </div>
         </Card>
 
-        <Card className="p-6 space-y-6">
+        <Card className="rounded-[2rem] p-6 space-y-6">
           <div>
             <h2 className="text-lg font-semibold">{t("models.projectModelPolicy")}</h2>
             <p className="text-xs text-muted-foreground">{t("models.chooseProfiles")}</p>
@@ -666,7 +674,7 @@ const ModelManagement = () => {
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>{t("models.allowedProfiles")}</Label>
-                <div className="space-y-2 border rounded-md p-3 max-h-64 overflow-y-auto">
+                <div className="rounded-[1.25rem] border border-border/70 p-3 max-h-64 overflow-y-auto">
                   {profileOptions.length === 0 && (
                     <p className="text-xs text-muted-foreground">{t("models.noActiveProfiles")}</p>
                   )}
@@ -696,7 +704,7 @@ const ModelManagement = () => {
               </div>
               <div className="space-y-2">
                 <Label>{t("models.defaultProfiles")}</Label>
-                <div className="space-y-2 border rounded-md p-3 max-h-64 overflow-y-auto">
+                <div className="rounded-[1.25rem] border border-border/70 p-3 max-h-64 overflow-y-auto">
                   {allowedProfiles.length === 0 && (
                     <p className="text-xs text-muted-foreground">{t("models.selectAllowedFirst")}</p>
                   )}

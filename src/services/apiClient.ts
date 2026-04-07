@@ -3,7 +3,20 @@
  */
 
 import { ProjectIAAConfig } from "@/types/data";
-import type { ProjectDataStatusCounts, AnnotatorStatsResponse, TaskTemplate, IAAStats, ImportJobStatus } from "@/types/data";
+import type {
+    ProjectDataStatusCounts,
+    AnnotatorStatsResponse,
+    TaskTemplate,
+    IAAStats,
+    ImportJobStatus,
+    BillingSettings,
+    DemoRequest,
+    PaymentMethod,
+    SubscriptionEmailLog,
+    SubscriptionPlan,
+    SubscriptionStatus,
+    SubscriptionSummary,
+} from "@/types/data";
 
 export interface AppNotification {
     id: string;
@@ -16,7 +29,31 @@ export interface AppNotification {
     createdAt: number;
 }
 
+export interface AuthResponse {
+    token: string;
+    id: string;
+    username: string;
+    roles: string[];
+    mustChangePassword?: boolean;
+    hasActiveAccess: boolean;
+    accessStatus: string;
+    accessReason?: string;
+    subscriptionSummary?: SubscriptionSummary | null;
+}
+
+export interface CurrentUserResponse {
+    id: string;
+    username: string;
+    roles: string[];
+    mustChangePassword?: boolean;
+    hasActiveAccess: boolean;
+    accessStatus: string;
+    accessReason?: string;
+    subscriptionSummary?: SubscriptionSummary | null;
+}
+
 const API_BASE = '/api';
+const SESSION_TOKEN_KEY = 'tawjeeh_token';
 
 // Module-level token store — set by AuthContext after login
 let _authToken: string | null = null;
@@ -26,7 +63,15 @@ export function setAuthToken(token: string | null): void {
 }
 
 export function getAuthToken(): string | null {
-    return _authToken;
+    if (_authToken) return _authToken;
+    if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+        const storedToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
+        if (storedToken) {
+            _authToken = storedToken;
+            return storedToken;
+        }
+    }
+    return null;
 }
 
 async function request<T>(
@@ -44,8 +89,9 @@ async function request<T>(
     }
 
     // Attach JWT Bearer token if available
-    if (_authToken) {
-        headers['Authorization'] = `Bearer ${_authToken}`;
+    const authToken = getAuthToken();
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
     }
 
     const response = await fetch(url, {
@@ -57,7 +103,7 @@ async function request<T>(
     if (response.status === 401) {
         // Token expired or invalid — clear stored token
         _authToken = null;
-        sessionStorage.removeItem('tawjeeh_token');
+        sessionStorage.removeItem(SESSION_TOKEN_KEY);
         throw new Error('Session expired. Please log in again.');
     }
 
@@ -236,18 +282,18 @@ export const apiClient = {
     // Auth
     auth: {
         login: (username: string, password: string) =>
-            request<any>('/auth/login', {
+            request<AuthResponse>('/auth/login', {
                 method: 'POST',
                 body: JSON.stringify({ username, password }),
             }),
 
         signup: (username: string, password: string, token: string) =>
-            request<any>('/auth/signup', {
+            request<AuthResponse>('/auth/signup', {
                 method: 'POST',
                 body: JSON.stringify({ username, password, token }),
             }),
 
-        me: () => request<any>('/auth/me'),
+        me: () => request<CurrentUserResponse>('/auth/me'),
     },
 
     // Invite tokens
@@ -339,6 +385,73 @@ export const apiClient = {
             }),
         delete: (id: string) =>
             request<{ success: boolean }>(`/notifications/${id}`, { method: 'DELETE' }),
+    },
+
+    marketing: {
+        getSettings: () => request<{ calendlyUrl: string }>('/public/marketing-settings'),
+        createDemoRequest: (data: {
+            name: string;
+            email: string;
+            organization?: string;
+            phone?: string;
+            message?: string;
+        }) => request<{ id: string; redirectUrl?: string }>('/demo-requests', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+    },
+
+    billing: {
+        getOverview: () => request<{
+            users: SubscriptionSummary[];
+            settings: BillingSettings;
+            demoRequests: DemoRequest[];
+            emailLogs: SubscriptionEmailLog[];
+        }>('/billing/overview'),
+        getUsers: () => request<SubscriptionSummary[]>('/billing/users'),
+        getSubscription: (userId: string) => request<SubscriptionSummary>(`/billing/subscriptions/${userId}`),
+        updateSubscription: (userId: string, data: {
+            planType: SubscriptionPlan;
+            status: SubscriptionStatus;
+            startAt: number;
+            billingAnchorAt?: number;
+            notes?: string;
+            contactEmail?: string;
+        }) => request<SubscriptionSummary>(`/billing/subscriptions/${userId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        }),
+        recordPayment: (data: {
+            userId: string;
+            amountCents: number;
+            paymentMethod: PaymentMethod;
+            reference?: string;
+            notes?: string;
+            paidAt?: number;
+        }) => request<{ payment: any; summary: SubscriptionSummary }>('/billing/payments', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+        getSettings: () => request<BillingSettings>('/billing/settings'),
+        updateSettings: (data: BillingSettings) => request<BillingSettings>('/billing/settings', {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        }),
+        getDemoRequests: () => request<DemoRequest[]>('/billing/demo-requests'),
+        updateDemoRequest: (id: string, status: string) => request<DemoRequest>(`/billing/demo-requests/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        }),
+        getEmailLogs: (userId?: string) => request<SubscriptionEmailLog[]>(`/billing/email-logs${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),
+        processLifecycleEmails: () => request<{ processed: number }>('/billing/emails/process-lifecycle', {
+            method: 'POST',
+            body: JSON.stringify({}),
+        }),
+        resendEmail: (data: { userId: string; emailType: string; paymentRecordId?: string | null }) =>
+            request<{ success: boolean }>('/billing/emails/resend', {
+                method: 'POST',
+                body: JSON.stringify(data),
+            }),
     },
 
     // Task Templates

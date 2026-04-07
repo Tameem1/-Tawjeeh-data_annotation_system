@@ -33,6 +33,7 @@ import { TemplatePickerModal } from "@/components/TemplatePickerModal";
 import { FormBuilder } from "@/components/FormBuilder";
 import { toast } from "@/components/ui/use-toast";
 import type { Project } from "@/types/data";
+import { SubscriptionAccessCard } from "@/components/SubscriptionAccessCard";
 
 export default function ProjectSettings() {
     const { projectId } = useParams<{ projectId: string }>();
@@ -62,6 +63,7 @@ export default function ProjectSettings() {
     const [builderMode, setBuilderMode] = useState<'visual' | 'xml'>('visual');
 
     const isAdmin = currentUser?.roles?.includes("admin");
+    const isSuperAdmin = currentUser?.roles?.includes("super_admin");
 
     // ── Load data ────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -70,11 +72,11 @@ export default function ProjectSettings() {
             projectService.getById(projectId),
             apiClient.users.getAll(),
         ]).then(([proj, users]) => {
-            if (!proj) { navigate("/"); return; }
+            if (!proj) { navigate("/app"); return; }
 
             const userIsAdmin = currentUser?.roles?.includes("admin");
             const userIsManager = proj.managerId === currentUser?.id;
-            if (!userIsAdmin && !userIsManager) { navigate("/"); return; }
+            if (!userIsAdmin && !userIsManager) { navigate("/app"); return; }
 
             setProject(proj);
             setAllUsers(users);
@@ -89,6 +91,10 @@ export default function ProjectSettings() {
             setIaaAnnotatorsPerItem(proj.iaaConfig?.annotatorsPerIAAItem ?? 2);
         }).finally(() => setLoading(false));
     }, [projectId, currentUser, navigate]);
+
+    if (currentUser?.hasActiveAccess === false && !isSuperAdmin) {
+        return <SubscriptionAccessCard reason={currentUser.accessReason} onBackToHome={() => navigate("/")} />;
+    }
 
     // ── Save helpers ─────────────────────────────────────────────────────────
     const saveGeneral = async () => {
@@ -172,7 +178,7 @@ export default function ProjectSettings() {
         if (!project) return;
         try {
             await projectService.delete(project.id);
-            navigate("/");
+            navigate("/app");
         } catch {
             toast({ title: t("common.error"), description: t("projectSettings.failedDeleteProject"), variant: "destructive" });
         }
@@ -187,7 +193,7 @@ export default function ProjectSettings() {
     // ── Render ───────────────────────────────────────────────────────────────
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-screen text-muted-foreground">
+            <div className="app-page flex h-screen items-center justify-center text-muted-foreground">
                 {t("projectSettings.loadingSettings")}
             </div>
         );
@@ -199,35 +205,36 @@ export default function ProjectSettings() {
     const annotatorUsers = allUsers.filter(u => u.roles?.includes("annotator"));
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="app-page">
             {/* Header */}
-            <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+            <div className="sticky top-0 z-10 border-b border-border/60 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+                <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-6 py-4">
                     <div className="flex items-center gap-3 min-w-0">
-                        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
+                        <Button variant="ghost" size="sm" onClick={() => navigate("/app")}>
                             <ArrowLeft className="w-4 h-4 mr-1.5" />
                             {t("projectSettings.projects")}
                         </Button>
                         <span className="text-muted-foreground">/</span>
                         <span className="font-semibold truncate">{project.name}</span>
                     </div>
-                    <Button size="sm" onClick={() => navigate(`/project/${projectId}`)}>
+                    <Button size="sm" onClick={() => navigate(`/app/project/${projectId}`)}>
                         {t("projectSettings.openWorkspace")}
                         <ExternalLink className="w-4 h-4 ml-1.5" />
                     </Button>
                 </div>
             </div>
 
-            <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+            <div className="mx-auto max-w-3xl space-y-6 px-6 py-8">
                 <div>
-                    <h1 className="text-2xl font-bold">{t("projectSettings.title")}</h1>
-                    <p className="text-muted-foreground text-sm mt-1">
+                    <p className="eyebrow">Project Configuration</p>
+                    <h1 className="mt-2 text-[2.5rem]">{t("projectSettings.title")}</h1>
+                    <p className="mt-2 text-sm text-muted-foreground">
                         {t("projectSettings.pageSubtitle")}
                     </p>
                 </div>
 
                 {/* 1 — General */}
-                <Card>
+                <Card className="rounded-[2rem]">
                     <CardHeader>
                         <CardTitle>{t("projectSettings.general")}</CardTitle>
                         <CardDescription>{t("projectSettings.generalDescription")}</CardDescription>
@@ -257,7 +264,7 @@ export default function ProjectSettings() {
                     onApply={xml => { setXmlConfig(xml); setXmlError(""); }}
                     currentXml={xmlConfig}
                 />
-                <Card>
+                <Card className="rounded-[2rem]">
                     <CardHeader>
                         <div className="flex items-start justify-between">
                             <div>
@@ -274,7 +281,7 @@ export default function ProjectSettings() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {/* Mode toggle */}
-                        <div className="flex items-center gap-1 rounded-md border w-fit p-0.5">
+                        <div className="surface-card flex w-fit items-center gap-1 rounded-full border border-border/70 p-1">
                             <Button
                                 variant={builderMode === 'visual' ? 'secondary' : 'ghost'}
                                 size="sm"
@@ -386,7 +393,7 @@ export default function ProjectSettings() {
                 </Card>
 
                 {/* 4 — Team */}
-                <Card>
+                <Card className="rounded-[2rem]">
                     <CardHeader>
                         <CardTitle>{t("projectSettings.team")}</CardTitle>
                         <CardDescription>{t("projectSettings.teamDescription")}</CardDescription>
@@ -409,12 +416,12 @@ export default function ProjectSettings() {
                         )}
                         <div className="space-y-1.5">
                             <Label>{t("projectSettings.annotatorsLabel")}</Label>
-                            <div className="rounded-md border divide-y max-h-56 overflow-y-auto">
+                            <div className="max-h-56 overflow-y-auto rounded-[1.25rem] border border-border/70 divide-y">
                                 {annotatorUsers.length === 0 && (
                                     <p className="text-sm text-muted-foreground p-3">{t("projectSettings.noAnnotatorAccounts")}</p>
                                 )}
                                 {annotatorUsers.map(u => (
-                                    <label key={u.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 cursor-pointer">
+                                    <label key={u.id} className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-secondary/70">
                                         <Checkbox
                                             checked={annotatorIds.includes(u.id)}
                                             onCheckedChange={() => toggleAnnotator(u.id)}
@@ -434,7 +441,7 @@ export default function ProjectSettings() {
                 </Card>
 
                 {/* 5 — Guidelines */}
-                <Card>
+                <Card className="rounded-[2rem]">
                     <CardHeader>
                         <CardTitle>{t("projectSettings.annotationGuidelines")}</CardTitle>
                         <CardDescription>{t("projectSettings.guidelinesDescription")}</CardDescription>
@@ -457,7 +464,7 @@ export default function ProjectSettings() {
                 </Card>
 
                 {/* 6 — IAA */}
-                <Card>
+                <Card className="rounded-[2rem]">
                     <CardHeader>
                         <CardTitle>{t("projectSettings.iaaTitle")}</CardTitle>
                         <CardDescription>
@@ -504,7 +511,7 @@ export default function ProjectSettings() {
 
                 {/* 7 — Danger Zone (admin only) */}
                 {isAdmin && (
-                    <Card className="border-destructive/40">
+                    <Card className="rounded-[2rem] border-destructive/25">
                         <CardHeader>
                             <CardTitle className="text-destructive flex items-center gap-2">
                                 <AlertTriangle className="w-5 h-5" />
@@ -515,7 +522,7 @@ export default function ProjectSettings() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3">
+                            <div className="flex items-center justify-between rounded-[1.25rem] border border-destructive/25 bg-destructive/5 px-4 py-4">
                                 <div>
                                     <p className="text-sm font-medium">{t("projectSettings.deleteThisProject")}</p>
                                     <p className="text-xs text-muted-foreground mt-0.5">

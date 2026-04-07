@@ -28,6 +28,7 @@ import { getDashboardSteps, type UserRole } from "@/components/Tutorial/tourStep
 import { LanguageSwitcherInline } from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { BrandLogo } from "@/components/BrandLogo";
+import { SubscriptionAccessCard } from "@/components/SubscriptionAccessCard";
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -140,6 +141,7 @@ const Dashboard = () => {
 
     const isAdmin = currentUser?.roles?.includes("admin");
     const isManager = currentUser?.roles?.includes("manager") || isAdmin;
+    const isSuperAdmin = currentUser?.roles?.includes("super_admin");
 
     const tutorialSteps = useMemo(() => {
         if (!currentUser) return [];
@@ -251,7 +253,7 @@ const Dashboard = () => {
             setIsCreateDialogOpen(false);
             setNewProjectName("");
             setNewProjectDesc("");
-            navigate(`/project/${project.id}`);
+            navigate(`/app/project/${project.id}`);
             toast({
                 title: "Success",
                 description: "Project created successfully.",
@@ -288,12 +290,13 @@ const Dashboard = () => {
     };
 
     if (!currentUser) return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-            <Card className="w-full max-w-sm">
+        <div className="app-page flex min-h-screen items-center justify-center p-4">
+            <Card className="w-full max-w-md rounded-[2rem]">
                 <CardHeader className="text-center">
-                    <BrandLogo className="mx-auto mb-3 h-20 w-44" />
-                    <CardTitle className="text-2xl">Tawjeeh Annotation</CardTitle>
-                    <CardDescription>{t("auth.loginSubtitle")}</CardDescription>
+                    <BrandLogo className="brand-tile mx-auto mb-4 h-16 w-16 rounded-[1.15rem] p-2.5" />
+                    <p className="eyebrow">Workspace Login</p>
+                    <CardTitle className="text-[2.35rem]">Tawjeeh Annotation</CardTitle>
+                    <CardDescription className="body-airy text-base">{t("auth.loginSubtitle")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleLogin} className="space-y-4">
@@ -332,7 +335,6 @@ const Dashboard = () => {
                                 : t("auth.loginButton")}
                         </Button>
                     </form>
-                    {/* Language switcher on the login screen */}
                     <div className="mt-4 flex justify-center gap-2 text-sm text-muted-foreground">
                         <LanguageSwitcherInline />
                     </div>
@@ -341,23 +343,33 @@ const Dashboard = () => {
         </div>
     );
 
+    if (currentUser.hasActiveAccess === false && !isSuperAdmin) {
+        return <SubscriptionAccessCard reason={currentUser.accessReason} onBackToHome={() => navigate("/")} />;
+    }
+
     return (
-        <div className="min-h-screen bg-background px-4 py-6 sm:px-6 sm:py-8">
-            <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8">
+        <div className="app-page px-4 py-6 sm:px-6 sm:py-8">
+            <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8">
                 {/* Header */}
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="surface-card flex flex-col gap-4 rounded-[2rem] border border-border/70 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex items-center gap-3 sm:gap-4">
-                        <BrandLogo className="brand-tile h-12 w-12 rounded-xl p-1.5" />
+                        <BrandLogo className="brand-tile h-12 w-12 rounded-[1rem] p-2" />
                         <div>
-                            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Tawjeeh Annotation</h1>
-                            <p className="text-muted-foreground">{t("dashboard.manageProjects")}</p>
+                            <p className="eyebrow">Project Dashboard</p>
+                            <h1 className="mt-2 text-[2.4rem] sm:text-[2.8rem]">Tawjeeh Annotation</h1>
+                            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t("dashboard.manageProjects")}</p>
                         </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         {isManager && (
-                            <Button id="tutorial-model-management" variant="outline" size="sm" onClick={() => navigate("/model-management")}>
+                            <Button id="tutorial-model-management" variant="outline" size="sm" onClick={() => navigate("/app/model-management")}>
                                 {t("nav.modelManagement")}
+                            </Button>
+                        )}
+                        {isSuperAdmin && (
+                            <Button variant="outline" size="sm" onClick={() => navigate("/app/billing")}>
+                                Billing Admin
                             </Button>
                         )}
                         {isAdmin && (
@@ -373,7 +385,7 @@ const Dashboard = () => {
 
                                     <div className="space-y-6">
                                         {/* Create User Section */}
-                                        <div className="space-y-3 p-4 bg-muted/20 rounded-lg border">
+                                        <div className="surface-card space-y-3 rounded-[1.5rem] border border-border/70 p-4">
                                             <h3 className="font-semibold text-sm">{t("dashboard.createNewUser")}</h3>
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                 <div className="space-y-1.5">
@@ -436,9 +448,9 @@ const Dashboard = () => {
                                         </div>
 
                                         {/* Invite Link Section */}
-                                        <div className="space-y-3 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <div className="surface-warm space-y-3 rounded-[1.5rem] border border-border/70 p-4">
                                             <div className="flex items-center gap-2">
-                                                <Link className="h-4 w-4 text-blue-600" />
+                                                <Link className="h-4 w-4" />
                                                 <h3 className="font-semibold text-sm">{t("dashboard.inviteLink")}</h3>
                                             </div>
                                             <p className="text-sm text-muted-foreground">
@@ -449,7 +461,7 @@ const Dashboard = () => {
                                                     <Input
                                                         value={inviteLink}
                                                         readOnly
-                                                        className="text-sm bg-white dark:bg-background"
+                                                        className="text-sm"
                                                     />
                                                     <Button
                                                         size="sm"
@@ -497,7 +509,7 @@ const Dashboard = () => {
                                                     return (
                                                         <div key={user.id} className="p-3 text-sm">
                                                             {isEditing ? (
-                                                                <div className="space-y-3 bg-muted/30 -m-3 p-3">
+                                                                <div className="surface-card -m-3 space-y-3 rounded-[1.25rem] p-3">
                                                                     <div className="flex justify-between items-center mb-2">
                                                                         <span className="font-medium">{t("dashboard.editingUser", { username: user.username })}</span>
                                                                     </div>
@@ -608,7 +620,7 @@ const Dashboard = () => {
                         {isAdmin && (
                             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                                 <DialogTrigger asChild>
-                                    <Button id="tutorial-new-project" className="bg-brand-gradient text-primary-foreground hover:opacity-95">
+                                    <Button id="tutorial-new-project" variant="secondary">
                                         <Plus className="w-4 h-4 mr-2" />
                                         {t("dashboard.newProject")}
                                     </Button>
@@ -666,7 +678,7 @@ const Dashboard = () => {
                 {/* Projects Grid */}
                 {
                     visibleProjects.length === 0 ? (
-                        <div className="text-center py-20 border-2 border-dashed rounded-xl bg-muted/30">
+                        <div className="surface-card rounded-[2rem] border border-dashed border-border/80 py-20 text-center">
                             <FolderOpen className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
                             <h2 className="text-xl font-semibold mb-2">{t("dashboard.noProjectsHeading")}</h2>
                             <p className="text-muted-foreground mb-6">
@@ -684,8 +696,8 @@ const Dashboard = () => {
                                 <Card
                                     key={project.id}
                                     id={idx === 0 ? "tutorial-open-project" : undefined}
-                                    className="group hover:shadow-lg transition-all cursor-pointer border-muted hover:border-primary/50"
-                                    onClick={() => navigate(`/project/${project.id}`)}
+                                    className="group cursor-pointer rounded-[1.75rem] border-border/70 transition-all hover:-translate-y-1 hover:border-foreground/15"
+                                    onClick={() => navigate(`/app/project/${project.id}`)}
                                 >
                                     <CardHeader className="pb-3">
                                         <div className="flex justify-between items-start">
@@ -707,14 +719,14 @@ const Dashboard = () => {
                                                     className="h-8 w-8 -mt-1 -mr-2"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        navigate(`/projects/${project.id}/settings`);
+                                                        navigate(`/app/projects/${project.id}/settings`);
                                                     }}
                                                 >
                                                     <Settings className="w-4 h-4" />
                                                 </Button>
                                             )}
                                         </div>
-                                        <CardDescription className="line-clamp-2 min-h-[2.5em]">
+                                        <CardDescription className="min-h-[2.5em] line-clamp-2">
                                             {project.description || t("dashboard.noDescription")}
                                         </CardDescription>
                                     </CardHeader>
@@ -733,7 +745,7 @@ const Dashboard = () => {
                                             {t("dashboard.manager")} {getUserById(project.managerId)?.username || t("dashboard.unassigned")}
                                         </div>
                                     </CardContent>
-                                    <CardFooter className="pt-3 border-t bg-muted/20 text-xs text-muted-foreground flex justify-between">
+                                    <CardFooter className="hairline-divider flex justify-between border-t bg-[hsl(var(--stone)/0.45)] pt-3 text-xs text-muted-foreground">
                                         <div className="flex items-center gap-1">
                                             <Clock className="w-3 h-3" />
                                             <span>{t("dashboard.updatedAgo", { time: formatDistanceToNow(project.updatedAt, { locale: language === "ar" ? arLocale : undefined }) })}</span>

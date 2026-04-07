@@ -2,8 +2,9 @@ import { getDatabase } from '../services/database.js';
 import { generateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { getUserAccessState } from '../services/billingService.js';
+import { assertRoles, isSuperAdmin, normalizeRoles } from '../services/permissions.js';
 
-const ALLOWED_ROLES = ['admin', 'manager', 'annotator'];
 const BCRYPT_ROUNDS = 12;
 
 function isValidPassword(password) {
@@ -11,8 +12,7 @@ function isValidPassword(password) {
 }
 
 function sanitizeRoles(roles) {
-    if (!Array.isArray(roles)) return ['annotator'];
-    return roles.filter(r => ALLOWED_ROLES.includes(r));
+    return assertRoles(roles);
 }
 
 const DEMO_XML_CONFIG = `<annotation-config>
@@ -106,7 +106,7 @@ export function registerUserRoutes(app) {
             res.json(users.map(u => ({
                 id: u.id,
                 username: u.username,
-                roles: JSON.parse(u.roles),
+                roles: normalizeRoles(JSON.parse(u.roles)),
                 mustChangePassword: !!u.must_change_password,
                 createdAt: u.created_at,
                 updatedAt: u.updated_at
@@ -130,7 +130,7 @@ export function registerUserRoutes(app) {
             res.json({
                 id: user.id,
                 username: user.username,
-                roles: JSON.parse(user.roles),
+                roles: normalizeRoles(JSON.parse(user.roles)),
                 mustChangePassword: !!user.must_change_password,
                 createdAt: user.created_at,
                 updatedAt: user.updated_at
@@ -160,6 +160,9 @@ export function registerUserRoutes(app) {
             }
 
             const sanitized = sanitizeRoles(roles);
+            if (roles?.includes?.('super_admin') && !isSuperAdmin(currentUser)) {
+                return res.status(403).json({ error: 'Only a super admin can assign the super_admin role' });
+            }
             if (sanitized.length === 0) {
                 return res.status(400).json({ error: 'At least one valid role is required' });
             }
@@ -233,6 +236,9 @@ export function registerUserRoutes(app) {
                 values.push(passwordHash);
             }
             if (roles !== undefined && isAdmin) {
+                if (roles?.includes?.('super_admin') && !isSuperAdmin(currentUser)) {
+                    return res.status(403).json({ error: 'Only a super admin can assign the super_admin role' });
+                }
                 const sanitized = sanitizeRoles(roles);
                 updates.push('roles = ?');
                 values.push(JSON.stringify(sanitized));
@@ -320,15 +326,20 @@ export function registerUserRoutes(app) {
                 return res.status(401).json({ error: 'Invalid username or password' });
             }
 
-            const roles = JSON.parse(user.roles);
+            const roles = normalizeRoles(JSON.parse(user.roles));
             const token = generateToken({ id: user.id, username: user.username, roles });
+            const accessState = getUserAccessState({ id: user.id, username: user.username, roles });
 
             res.json({
                 token,
                 id: user.id,
                 username: user.username,
                 roles,
-                mustChangePassword: !!user.must_change_password
+                mustChangePassword: !!user.must_change_password,
+                hasActiveAccess: accessState.hasActiveAccess,
+                accessStatus: accessState.accessStatus,
+                accessReason: accessState.reason,
+                subscriptionSummary: accessState.subscriptionSummary
             });
         } catch (error) {
             console.error('Error during login:', error);
@@ -348,11 +359,22 @@ export function registerUserRoutes(app) {
             return res.status(404).json({ error: 'User not found' });
         }
 
+        const normalizedRoles = normalizeRoles(JSON.parse(user.roles));
+        const accessState = getUserAccessState({
+            id: user.id,
+            username: user.username,
+            roles: normalizedRoles
+        });
+
         res.json({
             id: user.id,
             username: user.username,
-            roles: JSON.parse(user.roles),
-            mustChangePassword: !!user.must_change_password
+            roles: normalizedRoles,
+            mustChangePassword: !!user.must_change_password,
+            hasActiveAccess: accessState.hasActiveAccess,
+            accessStatus: accessState.accessStatus,
+            accessReason: accessState.reason,
+            subscriptionSummary: accessState.subscriptionSummary
         });
     });
 
@@ -506,7 +528,7 @@ export function registerUserRoutes(app) {
             // Create user
             const userId = crypto.randomUUID();
             const now = Date.now();
-            const roles = JSON.parse(invite.default_roles);
+            const roles = normalizeRoles(JSON.parse(invite.default_roles));
             const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
             db.prepare(`
@@ -521,12 +543,22 @@ export function registerUserRoutes(app) {
 
             const jwtToken = generateToken({ id: userId, username, roles });
 
+            const accessState = getUserAccessState({
+                id: userId,
+                username,
+                roles
+            });
+
             res.status(201).json({
                 token: jwtToken,
                 id: userId,
                 username,
                 roles,
-                mustChangePassword: false
+                mustChangePassword: false,
+                hasActiveAccess: accessState.hasActiveAccess,
+                accessStatus: accessState.accessStatus,
+                accessReason: accessState.reason,
+                subscriptionSummary: accessState.subscriptionSummary
             });
         } catch (error) {
             console.error('Error during signup:', error);

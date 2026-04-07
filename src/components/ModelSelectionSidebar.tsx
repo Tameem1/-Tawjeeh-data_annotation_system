@@ -92,7 +92,7 @@ export const ModelSelectionSidebar = ({
                         </div>
                     </ScrollArea>
                     <div className="p-3 border-t shrink-0">
-                        <Button variant="outline" size="sm" className="w-full text-xs gap-1.5" onClick={() => navigate('/model-management')}>
+                        <Button variant="outline" size="sm" className="w-full text-xs gap-1.5" onClick={() => navigate('/app/model-management')}>
                             <ExternalLink className="w-3 h-3" />
                             {t("workspace.manageModelProfiles")}
                         </Button>

@@ -13,6 +13,12 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-body)"],
+        display: ["var(--font-display)"],
+        "display-strong": ["var(--font-display-strong)"],
+        mono: ["var(--font-mono)"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -79,8 +85,11 @@ export default {
         'gradient-subtle': 'var(--gradient-subtle)',
       },
       boxShadow: {
-        'elegant': 'var(--shadow-elegant)',
-        'ai': 'var(--shadow-ai)',
+        elegant: "var(--shadow-elegant)",
+        ai: "var(--shadow-ai)",
+        surface: "var(--shadow-surface)",
+        float: "var(--shadow-float)",
+        warm: "var(--shadow-warm)",
       },
       transitionTimingFunction: {
         'smooth': 'var(--transition-smooth)',

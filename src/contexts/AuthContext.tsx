@@ -1,14 +1,19 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 import { apiClient, setAuthToken } from "@/services/apiClient";
+import type { SubscriptionSummary } from "@/types/data";
 
-export type Role = "admin" | "manager" | "annotator";
+export type Role = "super_admin" | "admin" | "manager" | "annotator";
 
 export type User = {
   id: string;
   username: string;
   roles: Role[];
   mustChangePassword?: boolean;
+  hasActiveAccess?: boolean;
+  accessStatus?: string;
+  accessReason?: string;
+  subscriptionSummary?: SubscriptionSummary | null;
 };
 
 type AuthContextValue = {
@@ -41,8 +46,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAuthToken(storedToken);
       // Validate token and get current user
       apiClient.auth.me()
-        .then((user: User) => {
-          setCurrentUser(user);
+        .then((user) => {
+          setCurrentUser(user as User);
         })
         .catch(() => {
           // Token invalid or expired

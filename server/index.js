@@ -8,7 +8,7 @@ import fetch from 'node-fetch';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
-import { attachUser, requireAuth } from './middleware/auth.js';
+import { attachUser, requireActiveAccess, requireAuth } from './middleware/auth.js';
 import { getDatabase, initDatabase } from './services/database.js';
 import { registerProjectRoutes } from './routes/projects.js';
 import { registerUserRoutes } from './routes/users.js';
@@ -17,6 +17,7 @@ import { registerCommentRoutes } from './routes/comments.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerIAARoutes } from './routes/iaa.js';
+import { registerBillingRoutes } from './routes/billing.js';
 import { startImportWorker } from './services/importWorker.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -42,6 +43,26 @@ app.use(cookieParser());
 app.use(express.json({ limit: '50mb' }));
 app.use(attachUser);
 
+const guardedPrefixes = [
+    '/api/projects',
+    '/api/users',
+    '/api/notifications',
+    '/api/templates',
+    '/api/iaa',
+    '/api/connections',
+    '/api/profiles',
+    '/api/policies',
+    '/api/openai',
+    '/api/anthropic',
+    '/api/gemini',
+    '/api/sambanova',
+    '/api/openrouter',
+    '/api/huggingface',
+];
+for (const prefix of guardedPrefixes) {
+    app.use(prefix, requireAuth, requireActiveAccess);
+}
+
 // Rate limiting for auth endpoints
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -60,6 +81,7 @@ registerCommentRoutes(app);
 registerNotificationRoutes(app);
 registerTemplateRoutes(app);
 registerIAARoutes(app);
+registerBillingRoutes(app);
 startImportWorker();
 
 // Legacy project param handler (for existing routes)

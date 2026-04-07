@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { getDatabase } from '../services/database.js';
+import { getUserAccessState } from '../services/billingService.js';
+import { isAdmin, isSuperAdmin, normalizeRoles } from '../services/permissions.js';
 
 function getSecret() {
   const jwtSecret = process.env.JWT_SECRET;
@@ -14,7 +16,7 @@ function getSecret() {
 
 export const generateToken = (user) => {
   return jwt.sign(
-    { id: user.id, username: user.username, roles: user.roles },
+    { id: user.id, username: user.username, roles: normalizeRoles(user.roles) },
     getSecret(),
     { expiresIn: '8h' }
   );
@@ -32,7 +34,7 @@ export const attachUser = (req, _res, next) => {
       if (user) {
         req.user = {
           ...user,
-          roles: JSON.parse(user.roles)
+          roles: normalizeRoles(JSON.parse(user.roles))
         };
       }
     } catch (error) {
@@ -55,7 +57,7 @@ export const requireRole = (allowedRoles = []) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const hasRole = req.user.roles.some(role => allowedRoles.includes(role));
+    const hasRole = normalizeRoles(req.user.roles).some(role => allowedRoles.includes(role));
     if (!hasRole) {
       return res.status(403).json({ error: 'Forbidden' });
     }
@@ -75,7 +77,7 @@ export const requireProjectRole = (allowedRoles = []) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    if (req.user.roles.includes('admin')) {
+    if (isAdmin(req.user)) {
       return next();
     }
     if (!req.project) {
@@ -90,4 +92,33 @@ export const requireProjectRole = (allowedRoles = []) => {
 
     return res.status(403).json({ error: 'Forbidden' });
   };
+};
+
+export const requireSuperAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!isSuperAdmin(req.user)) {
+    return res.status(403).json({ error: 'Super admin access required' });
+  }
+  next();
+};
+
+export const requireActiveAccess = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const accessState = getUserAccessState(req.user);
+  req.accessState = accessState;
+
+  if (accessState.hasActiveAccess) {
+    return next();
+  }
+
+  return res.status(402).json({
+    error: accessState.reason || 'Active subscription required',
+    accessStatus: accessState.accessStatus,
+    hasActiveAccess: false,
+  });
 };

@@ -10,6 +10,8 @@ import ModelManagement from "./pages/ModelManagement";
 import ProjectSettings from "./pages/ProjectSettings";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
+import LandingPage from "./pages/LandingPage";
+import BillingAdmin from "./pages/BillingAdmin";
 import { DirectionProvider } from "@radix-ui/react-direction";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -34,8 +36,13 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/app" element={<Dashboard />} />
+            <Route path="/app/billing" element={<BillingAdmin />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/app/model-management" element={<ModelManagement />} />
+            <Route path="/app/project/:projectId" element={<Index />} />
+            <Route path="/app/projects/:projectId/settings" element={<ProjectSettings />} />
             <Route path="/model-management" element={<ModelManagement />} />
             <Route path="/project/:projectId" element={<Index />} />
             <Route path="/projects/:projectId/settings" element={<ProjectSettings />} />
