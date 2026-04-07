@@ -23,6 +23,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
+COPY --from=builder /app/shared ./shared
 
 EXPOSE 3000
 

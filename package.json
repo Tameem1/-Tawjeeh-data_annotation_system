@@ -37,6 +37,7 @@
   },
   "files": [
     "dist",
+    "shared",
     "server/index.js",
     "server/middleware",
     "server/routes",
