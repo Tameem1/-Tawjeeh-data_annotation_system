@@ -71,11 +71,11 @@ app.param('id', async (req, _res, next, _id) => {
     next();
 });
 
-// Resolve API keys from explicit headers first, then saved provider connections, then env.
+// Resolve provider API keys from dedicated headers first, then saved provider connections, then env.
 const getApiKey = (req, envVarName) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        return authHeader.split(' ')[1];
+    const providerKeyHeader = req.headers['x-provider-api-key'];
+    if (typeof providerKeyHeader === 'string' && providerKeyHeader.trim()) {
+        return providerKeyHeader.trim();
     }
     const connectionIdHeader = req.headers['x-connection-id'];
     const connectionIdQuery = typeof req.query?.connectionId === 'string' ? req.query.connectionId : null;

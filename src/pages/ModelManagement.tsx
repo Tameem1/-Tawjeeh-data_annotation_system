@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { modelManagementService } from "@/services/modelManagementService";
 import { projectService } from "@/services/projectService";
 import { AVAILABLE_PROVIDERS } from "@/services/aiProviders";
+import { getAuthToken } from "@/services/apiClient";
 import type { ModelProfile, Project, ProjectModelPolicy, ProviderConnection } from "@/types/data";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -137,7 +138,8 @@ const ModelManagement = () => {
     try {
       const response = await fetch(endpoint, {
         headers: {
-          ...(connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : {}),
+          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+          ...(connection.apiKey ? { "X-Provider-Api-Key": connection.apiKey } : {}),
           "X-Connection-Id": connection.id
         }
       });

@@ -1,5 +1,6 @@
 // SDK imports removed to prevent client-side key exposure
 import { ModelProvider } from '@/types/data';
+import { getAuthToken } from '@/services/apiClient';
 
 export interface AIRequestOptions {
   temperature?: number;
@@ -122,6 +123,21 @@ const resolveImageContent = async (text: string): Promise<string> => {
   return text;
 };
 
+const buildProxyHeaders = (apiKey?: string, connectionId?: string): Record<string, string> => {
+  const headers: Record<string, string> = {};
+  const authToken = getAuthToken();
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+  if (apiKey) {
+    headers['X-Provider-Api-Key'] = apiKey;
+  }
+  if (connectionId) {
+    headers['X-Connection-Id'] = connectionId;
+  }
+  return headers;
+};
+
 class OpenAIProvider implements AIProvider {
   id = 'openai';
   name = 'OpenAI GPT';
@@ -150,8 +166,7 @@ class OpenAIProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
-        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
+        ...buildProxyHeaders(apiKey, options?.connectionId)
       },
       body: JSON.stringify({
         model: modelId,
@@ -240,8 +255,7 @@ class AnthropicProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
-        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
+        ...buildProxyHeaders(apiKey, options?.connectionId)
       },
       body: JSON.stringify({
         model: modelId,
@@ -314,8 +328,7 @@ class GeminiProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
-        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
+        ...buildProxyHeaders(apiKey, options?.connectionId)
       },
       body: JSON.stringify(body)
     });
@@ -364,8 +377,7 @@ class SambaNovaProvider implements AIProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
-          ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
+          ...buildProxyHeaders(apiKey, options?.connectionId)
         },
         body: JSON.stringify({
           model: modelId,
@@ -389,8 +401,7 @@ class SambaNovaProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
-        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
+        ...buildProxyHeaders(apiKey, options?.connectionId)
       },
       body: JSON.stringify({
         model: modelId,
@@ -442,8 +453,7 @@ class OpenRouterProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
-        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
+        ...buildProxyHeaders(apiKey, options?.connectionId)
       },
       body: JSON.stringify({
         model: modelId,

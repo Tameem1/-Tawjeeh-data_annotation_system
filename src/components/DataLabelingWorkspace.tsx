@@ -86,7 +86,7 @@ import {
 import { VersionHistory } from "@/components/VersionHistory";
 import { projectService } from "@/services/projectService";
 import { modelManagementService } from "@/services/modelManagementService";
-import apiClient from "@/services/apiClient";
+import apiClient, { getAuthToken } from "@/services/apiClient";
 
 type AnnotationStatusFilter = 'all' | 'has_final' | DataPoint['status'];
 const COMMENTS_PAGE_SIZE = 10;
@@ -476,7 +476,8 @@ const DataLabelingWorkspace = () => {
             method: 'GET',
             signal: controller.signal,
             headers: {
-              ...(connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : {}),
+              ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+              ...(connection.apiKey ? { 'X-Provider-Api-Key': connection.apiKey } : {}),
               'X-Connection-Id': connection.id
             }
           });

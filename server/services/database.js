@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
+import { PLAN_ORDER } from '../../shared/billing.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -269,6 +270,89 @@ function createSchema() {
     )
   `);
 
+  // Billing settings table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      updated_by TEXT,
+      FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  // Subscriptions table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE,
+      contact_email TEXT,
+      plan_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      start_at INTEGER NOT NULL,
+      billing_anchor_at INTEGER NOT NULL,
+      expires_at INTEGER,
+      price_snapshot_cents INTEGER NOT NULL,
+      notes TEXT,
+      updated_by TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  // Payment records table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS payment_records (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      amount_cents INTEGER NOT NULL,
+      payment_method TEXT NOT NULL DEFAULT 'cash',
+      reference TEXT,
+      notes TEXT,
+      paid_at INTEGER NOT NULL,
+      recorded_by TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  // Demo requests table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS demo_requests (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      organization TEXT,
+      phone TEXT,
+      message TEXT,
+      status TEXT NOT NULL DEFAULT 'new',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // Subscription email activity table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS subscription_email_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      subscription_id TEXT,
+      payment_record_id TEXT,
+      email_type TEXT NOT NULL,
+      recipient_email TEXT NOT NULL,
+      resend_message_id TEXT,
+      status TEXT NOT NULL,
+      error_message TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE SET NULL,
+      FOREIGN KEY (payment_record_id) REFERENCES payment_records(id) ON DELETE SET NULL
+    )
+  `);
+
   // Import jobs table
   db.exec(`
     CREATE TABLE IF NOT EXISTS import_jobs (
@@ -343,6 +427,11 @@ function createSchema() {
     CREATE INDEX IF NOT EXISTS idx_import_jobs_status_created ON import_jobs(status, created_at);
     CREATE INDEX IF NOT EXISTS idx_import_jobs_project_created ON import_jobs(project_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_import_staging_job_order ON import_staging_data_points(job_id, row_order);
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_status_expires ON subscriptions(status, expires_at);
+    CREATE INDEX IF NOT EXISTS idx_payment_records_user_paid_at ON payment_records(user_id, paid_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_demo_requests_status_created ON demo_requests(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_subscription_email_log_user_created ON subscription_email_log(user_id, created_at DESC);
   `);
 
   // Migrations — add columns if they don't exist yet
@@ -352,6 +441,7 @@ function createSchema() {
     `ALTER TABLE projects ADD COLUMN iaa_config TEXT`,
     `ALTER TABLE projects ADD COLUMN guidelines TEXT`,
     `ALTER TABLE projects ADD COLUMN is_demo INTEGER DEFAULT 0`,
+    `ALTER TABLE subscriptions ADD COLUMN contact_email TEXT`,
     // Task templates
     `CREATE TABLE IF NOT EXISTS task_templates (
       id TEXT PRIMARY KEY,
@@ -381,10 +471,33 @@ function createSchema() {
     const defaultHash = bcrypt.hashSync('admin', 12);
     db.prepare(`
       INSERT INTO users (id, username, password, roles, must_change_password, created_at, updated_at)
-      VALUES (?, 'admin', ?, '["admin","manager","annotator"]', 1, ?, ?)
+      VALUES (?, 'admin', ?, '["super_admin","admin","manager","annotator"]', 1, ?, ?)
     `).run(crypto.randomUUID(), defaultHash, now, now);
     console.log('Created default admin user (username: admin, password: admin) — change this password immediately!');
   }
+
+  const seedAdmin = db.prepare(`SELECT id, roles FROM users WHERE username = 'admin' LIMIT 1`).get();
+  if (seedAdmin) {
+    try {
+      const parsedRoles = JSON.parse(seedAdmin.roles);
+      const merged = Array.from(new Set(['super_admin', ...parsedRoles, 'admin', 'manager', 'annotator']));
+      db.prepare('UPDATE users SET roles = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(merged), Date.now(), seedAdmin.id);
+    } catch {
+      db.prepare('UPDATE users SET roles = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(['super_admin', 'admin', 'manager', 'annotator']), Date.now(), seedAdmin.id);
+    }
+  }
+
+  const now = Date.now();
+  const upsertSetting = db.prepare(`
+    INSERT INTO app_settings (key, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO NOTHING
+  `);
+  upsertSetting.run('calendly_url', '', now);
+  upsertSetting.run('resend_from_email', '', now);
+  upsertSetting.run('billing_reply_to_email', '', now);
 }
 
 /**
