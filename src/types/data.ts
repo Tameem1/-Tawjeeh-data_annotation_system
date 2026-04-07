@@ -68,6 +68,8 @@ export interface ProviderConnection {
     providerId: ModelProvider['id'];
     name: string;
     apiKey?: string;
+    apiKeyMasked?: string;
+    hasApiKey?: boolean;
     baseUrl?: string;
     isActive: boolean;
     createdAt: number;

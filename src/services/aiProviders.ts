@@ -4,6 +4,7 @@ import { ModelProvider } from '@/types/data';
 export interface AIRequestOptions {
   temperature?: number;
   maxTokens?: number;
+  connectionId?: string;
 }
 
 export type AIInputType = 'text' | 'image' | 'audio';
@@ -126,7 +127,7 @@ class OpenAIProvider implements AIProvider {
   name = 'OpenAI GPT';
 
   async processText(text: string, prompt?: string, apiKey?: string, modelId: string = 'gpt-4o-mini', baseUrl?: string, type: AIInputType = 'text', options?: AIRequestOptions): Promise<string> {
-    if (!apiKey) throw new Error('OpenAI API key is required');
+    if (!apiKey && !options?.connectionId) throw new Error('OpenAI API key is required');
 
     const messages: any[] = [
       { role: "system", content: prompt || "You are a helpful data labeling assistant." }
@@ -149,7 +150,8 @@ class OpenAIProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
       },
       body: JSON.stringify({
         model: modelId,
@@ -179,7 +181,7 @@ class AnthropicProvider implements AIProvider {
   name = 'Anthropic Claude';
 
   async processText(text: string, prompt?: string, apiKey?: string, modelId: string = 'claude-3-5-sonnet-20240620', baseUrl?: string, type: AIInputType = 'text', options?: AIRequestOptions): Promise<string> {
-    if (!apiKey) throw new Error('Anthropic API key is required');
+    if (!apiKey && !options?.connectionId) throw new Error('Anthropic API key is required');
 
     const messages: any[] = [];
 
@@ -238,7 +240,8 @@ class AnthropicProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
       },
       body: JSON.stringify({
         model: modelId,
@@ -264,7 +267,7 @@ class GeminiProvider implements AIProvider {
   name = 'Google Gemini';
 
   async processText(text: string, prompt?: string, apiKey?: string, modelId: string = 'gemini-2.0-flash', baseUrl?: string, type: AIInputType = 'text', options?: AIRequestOptions): Promise<string> {
-    if (!apiKey) throw new Error('Gemini API key is required');
+    if (!apiKey && !options?.connectionId) throw new Error('Gemini API key is required');
 
     const parts: Array<Record<string, unknown>> = [];
     const userText = type === 'image'
@@ -311,7 +314,8 @@ class GeminiProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
       },
       body: JSON.stringify(body)
     });
@@ -339,7 +343,7 @@ class SambaNovaProvider implements AIProvider {
   name = 'SambaNova Cloud';
 
   async processText(text: string, prompt?: string, apiKey?: string, modelId: string = 'Meta-Llama-3.1-70B-Instruct', baseUrl?: string, type: AIInputType = 'text', options?: AIRequestOptions): Promise<string> {
-    if (!apiKey) throw new Error('SambaNova API key is required');
+    if (!apiKey && !options?.connectionId) throw new Error('SambaNova API key is required');
 
     if (type === 'image') {
       const imageUrl = await resolveImageContent(text);
@@ -360,7 +364,8 @@ class SambaNovaProvider implements AIProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+          ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
         },
         body: JSON.stringify({
           model: modelId,
@@ -384,7 +389,8 @@ class SambaNovaProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
       },
       body: JSON.stringify({
         model: modelId,
@@ -413,7 +419,7 @@ class OpenRouterProvider implements AIProvider {
   name = 'OpenRouter';
 
   async processText(text: string, prompt?: string, apiKey?: string, modelId: string = 'openai/gpt-4o-mini', baseUrl?: string, type: AIInputType = 'text', options?: AIRequestOptions): Promise<string> {
-    if (!apiKey) throw new Error('OpenRouter API key is required');
+    if (!apiKey && !options?.connectionId) throw new Error('OpenRouter API key is required');
 
     const messages: any[] = [
       { role: "system", content: prompt || "You are a helpful data labeling assistant." }
@@ -436,7 +442,8 @@ class OpenRouterProvider implements AIProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+        ...(options?.connectionId ? { 'X-Connection-Id': options.connectionId } : {})
       },
       body: JSON.stringify({
         model: modelId,

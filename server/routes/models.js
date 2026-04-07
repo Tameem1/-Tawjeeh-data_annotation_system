@@ -23,7 +23,7 @@ export function registerModelRoutes(app) {
                 id: c.id,
                 providerId: c.provider_id,
                 name: c.name,
-                apiKey: maskApiKey(c.api_key),
+                apiKeyMasked: maskApiKey(c.api_key),
                 hasApiKey: !!c.api_key,
                 baseUrl: c.base_url,
                 isActive: !!c.is_active,
@@ -46,6 +46,13 @@ export function registerModelRoutes(app) {
 
             const connectionId = id || crypto.randomUUID();
             const now = Date.now();
+            const existing = id
+                ? db.prepare('SELECT api_key, created_at FROM provider_connections WHERE id = ?').get(id)
+                : null;
+            const resolvedApiKey = apiKey === undefined
+                ? (existing?.api_key ?? null)
+                : (apiKey || null);
+            const createdAt = existing?.created_at || now;
 
             db.prepare(`
         INSERT INTO provider_connections (id, provider_id, name, api_key, base_url, is_active, created_at, updated_at)
@@ -57,9 +64,9 @@ export function registerModelRoutes(app) {
           base_url = excluded.base_url,
           is_active = excluded.is_active,
           updated_at = excluded.updated_at
-      `).run(connectionId, providerId, name, apiKey || null, baseUrl || null, isActive ? 1 : 0, now, now);
+      `).run(connectionId, providerId, name, resolvedApiKey, baseUrl || null, isActive ? 1 : 0, createdAt, now);
 
-            res.status(201).json({ id: connectionId, createdAt: now, updatedAt: now });
+            res.status(201).json({ id: connectionId, createdAt, updatedAt: now });
         } catch (error) {
             console.error('Error saving connection:', error);
             res.status(500).json({ error: 'Failed to save connection' });

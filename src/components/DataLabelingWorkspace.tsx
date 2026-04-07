@@ -455,7 +455,7 @@ const DataLabelingWorkspace = () => {
         .map(modelProfileId => {
           const profile = profileById.get(modelProfileId);
           const connection = profile ? connectionById.get(profile.providerConnectionId) : null;
-          if (!connection || !connection.isActive || connection.providerId !== 'openrouter' || !connection.apiKey) {
+          if (!connection || !connection.isActive || connection.providerId !== 'openrouter' || (!connection.apiKey && !connection.hasApiKey)) {
             return null;
           }
           return connection;
@@ -476,7 +476,8 @@ const DataLabelingWorkspace = () => {
             method: 'GET',
             signal: controller.signal,
             headers: {
-              Authorization: `Bearer ${connection.apiKey}`
+              ...(connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : {}),
+              'X-Connection-Id': connection.id
             }
           });
           if (!response.ok) return;
@@ -1593,6 +1594,7 @@ const DataLabelingWorkspace = () => {
       baseUrl,
       dataPoint.type,
       {
+        connectionId: connection.id,
         temperature: profile.temperature,
         maxTokens: profile.maxTokens
       }
@@ -1621,7 +1623,7 @@ const DataLabelingWorkspace = () => {
         setUploadError(`Connection for ${profile.displayName} is missing or inactive`);
         return null;
       }
-      if (providerRequirements.get(connection.providerId) && !connection.apiKey) {
+      if (providerRequirements.get(connection.providerId) && !connection.apiKey && !connection.hasApiKey) {
         setUploadError(`Missing API key for ${connection.name}`);
         return null;
       }

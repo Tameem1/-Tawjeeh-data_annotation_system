@@ -42,6 +42,7 @@ const ModelManagement = () => {
   const [connectionApiKey, setConnectionApiKey] = useState("");
   const [connectionBaseUrl, setConnectionBaseUrl] = useState("");
   const [connectionIsActive, setConnectionIsActive] = useState(true);
+  const [editingConnectionHasStoredKey, setEditingConnectionHasStoredKey] = useState(false);
 
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [profileConnectionId, setProfileConnectionId] = useState("");
@@ -117,7 +118,7 @@ const ModelManagement = () => {
 
   const fetchOfficialModels = useCallback(async (connection: ProviderConnection, force = false) => {
     if (!isOfficialProvider(connection.providerId)) return;
-    if (!connection.apiKey) {
+    if (!connection.apiKey && !connection.hasApiKey) {
       setRemoteModelsError("API key is required to load official provider models.");
       return;
     }
@@ -136,7 +137,8 @@ const ModelManagement = () => {
     try {
       const response = await fetch(endpoint, {
         headers: {
-          Authorization: `Bearer ${connection.apiKey}`
+          ...(connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : {}),
+          "X-Connection-Id": connection.id
         }
       });
       const contentType = response.headers.get("content-type") || "";
@@ -221,7 +223,7 @@ const ModelManagement = () => {
       toast({ title: t("models.unknownProvider"), description: t("models.providerNotAvailable") });
       return;
     }
-    if (providerInfo.requiresApiKey && !connection.apiKey) {
+    if (providerInfo.requiresApiKey && !connection.apiKey && !connection.hasApiKey) {
       toast({ title: t("models.missingApiKey"), description: t("models.addApiKeyFirst") });
       return;
     }
@@ -239,6 +241,7 @@ const ModelManagement = () => {
         baseUrl,
         "text",
         {
+          connectionId: connection.id,
           temperature: profile.temperature,
           maxTokens: profile.maxTokens
         }
@@ -292,6 +295,7 @@ const ModelManagement = () => {
     setConnectionApiKey("");
     setConnectionBaseUrl("");
     setConnectionIsActive(true);
+    setEditingConnectionHasStoredKey(false);
   };
 
   const resetProfileForm = () => {
@@ -318,6 +322,7 @@ const ModelManagement = () => {
       providerId: connectionProviderId as ProviderConnection["providerId"],
       name: connectionName.trim(),
       apiKey: connectionApiKey.trim() || undefined,
+      hasApiKey: editingConnectionHasStoredKey || !!connectionApiKey.trim(),
       baseUrl: connectionBaseUrl.trim() || undefined,
       isActive: connectionIsActive,
       createdAt: now,
@@ -332,9 +337,10 @@ const ModelManagement = () => {
     setEditingConnectionId(connection.id);
     setConnectionProviderId(connection.providerId);
     setConnectionName(connection.name);
-    setConnectionApiKey(connection.apiKey ?? "");
+    setConnectionApiKey("");
     setConnectionBaseUrl(connection.baseUrl ?? "");
     setConnectionIsActive(connection.isActive);
+    setEditingConnectionHasStoredKey(!!connection.hasApiKey);
   };
 
   const handleDeleteConnection = (id: string) => {
@@ -439,7 +445,12 @@ const ModelManagement = () => {
             </div>
             <div className="space-y-3">
               <Label>{t("models.apiKey")}</Label>
-              <Input type="password" value={connectionApiKey} onChange={(e) => setConnectionApiKey(e.target.value)} placeholder="sk-..." />
+              <Input
+                type="password"
+                value={connectionApiKey}
+                onChange={(e) => setConnectionApiKey(e.target.value)}
+                placeholder={editingConnectionHasStoredKey ? "Stored securely. Enter a new key to replace it." : "sk-..."}
+              />
             </div>
             <div className="space-y-3">
               <Label>{t("models.baseUrlOptional")}</Label>

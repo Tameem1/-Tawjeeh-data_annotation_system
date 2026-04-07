@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { attachUser, requireAuth } from './middleware/auth.js';
-import { initDatabase } from './services/database.js';
+import { getDatabase, initDatabase } from './services/database.js';
 import { registerProjectRoutes } from './routes/projects.js';
 import { registerUserRoutes } from './routes/users.js';
 import { registerModelRoutes } from './routes/models.js';
@@ -71,11 +71,22 @@ app.param('id', async (req, _res, next, _id) => {
     next();
 });
 
-// Helper to get API key (prefer header, fallback to env)
+// Resolve API keys from explicit headers first, then saved provider connections, then env.
 const getApiKey = (req, envVarName) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
         return authHeader.split(' ')[1];
+    }
+    const connectionIdHeader = req.headers['x-connection-id'];
+    const connectionIdQuery = typeof req.query?.connectionId === 'string' ? req.query.connectionId : null;
+    const connectionId = connectionIdHeader || connectionIdQuery;
+    if (connectionId) {
+        const record = getDatabase()
+            .prepare('SELECT api_key FROM provider_connections WHERE id = ?')
+            .get(connectionId);
+        if (record?.api_key) {
+            return record.api_key;
+        }
     }
     return process.env[envVarName];
 };
