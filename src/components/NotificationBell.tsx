@@ -13,8 +13,13 @@ import {
 import { useNotifications } from '@/hooks/use-notifications';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { AppNotification } from '@/services/apiClient';
+import { cn } from '@/lib/utils';
 
-export function NotificationBell() {
+type NotificationBellProps = {
+  buttonClassName?: string;
+};
+
+export function NotificationBell({ buttonClassName }: NotificationBellProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -40,7 +45,12 @@ export function NotificationBell() {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label={t('notifications.title')}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn("relative", buttonClassName)}
+          aria-label={t('notifications.title')}
+        >
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">

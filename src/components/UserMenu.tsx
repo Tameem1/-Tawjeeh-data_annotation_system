@@ -16,8 +16,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { cn } from "@/lib/utils";
 
-export const UserMenu = () => {
+type UserMenuProps = {
+  triggerClassName?: string;
+  avatarClassName?: string;
+};
+
+export const UserMenu = ({ triggerClassName, avatarClassName }: UserMenuProps) => {
   const { t } = useTranslation();
   const { currentUser, logout, changePassword } = useAuth();
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -70,8 +76,8 @@ export const UserMenu = () => {
         <Tooltip>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full p-0">
-                <span className="surface-warm flex h-8 w-8 items-center justify-center rounded-full border border-border/70 text-[11px] font-semibold text-foreground">
+              <Button size="icon" variant="ghost" className={cn("h-8 w-8 rounded-full p-0", triggerClassName)}>
+                <span className={cn("surface-warm flex h-8 w-8 items-center justify-center rounded-full border border-border/70 text-[11px] font-semibold text-foreground", avatarClassName)}>
                   {initials}
                 </span>
               </Button>

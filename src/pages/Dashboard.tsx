@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, FolderOpen, Clock, BarChart3, Settings, Target, Shield, Briefcase, PenTool, Link, Copy, Check, Loader2, HelpCircle, FlaskConical } from "lucide-react";
+import { Plus, FolderOpen, Clock, BarChart3, Settings, Target, Shield, Briefcase, PenTool, Link, Copy, Check, Loader2, HelpCircle, FlaskConical, Sparkles, Users2, CreditCard, PanelsTopLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -143,6 +143,13 @@ const Dashboard = () => {
     const isAdmin = isTenantAdmin;
     const isManager = (currentUser?.roles?.includes("manager") && !!currentUser?.organizationId) || isAdmin;
     const isSuperAdmin = currentUser?.roles?.includes("super_admin");
+    const workspaceRoleLabel = isSuperAdmin
+        ? t("dashboard.roles.super_admin")
+        : isAdmin
+            ? t("dashboard.roles.admin")
+            : isManager
+                ? t("dashboard.roles.manager")
+                : t("dashboard.roles.annotator");
     const assignableRoleOptions = [
         { id: "manager", label: t("dashboard.roles.manager"), icon: Briefcase },
         { id: "annotator", label: t("dashboard.roles.annotator"), icon: PenTool },
@@ -357,32 +364,62 @@ const Dashboard = () => {
         <div className="app-page px-4 py-6 sm:px-6 sm:py-8">
             <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8">
                 {/* Header */}
-                <div className="surface-card flex flex-col gap-4 rounded-[2rem] border border-border/70 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-center gap-3 sm:gap-4">
-                        <BrandLogo className="brand-tile h-12 w-12 rounded-[1rem] p-2" />
-                        <div>
-                            <p className="eyebrow">Project Dashboard</p>
-                            <h1 className="mt-2 text-[2.4rem] sm:text-[2.8rem]">Tawjeeh Annotation</h1>
-                            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t("dashboard.manageProjects")}</p>
+                <div className="surface-card nav-shell sticky top-4 z-20 rounded-[2rem] border border-border/70 px-5 py-5 sm:px-6 sm:py-6">
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[hsl(var(--stone)/0.5)] to-transparent opacity-70" />
+                    <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex items-start gap-4 sm:gap-5">
+                            <BrandLogo className="brand-tile mt-1 h-14 w-14 rounded-[1.1rem] p-2.5 sm:h-16 sm:w-16 sm:rounded-[1.2rem]" />
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <p className="eyebrow">Project Dashboard</p>
+                                    <span className="surface-warm inline-flex items-center gap-2 rounded-full border border-border/70 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                        <Sparkles className="h-3.5 w-3.5 text-foreground" />
+                                        {workspaceRoleLabel}
+                                    </span>
+                                </div>
+                                <h1 className="mt-3 text-[2.5rem] leading-[0.94] sm:text-[3rem]">Tawjeeh Annotation</h1>
+                                <p className="body-airy mt-3 max-w-2xl text-sm text-muted-foreground sm:text-[0.98rem]">{t("dashboard.manageProjects")}</p>
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        {isManager && (
-                            <Button id="tutorial-model-management" variant="outline" size="sm" onClick={() => navigate("/app/model-management")}>
-                                {t("nav.modelManagement")}
-                            </Button>
-                        )}
-                        {isSuperAdmin && (
-                            <Button variant="outline" size="sm" onClick={() => navigate("/app/billing")}>
-                                Billing Admin
-                            </Button>
-                        )}
-                        {isAdmin && (
-                            <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
-                                <DialogTrigger asChild>
-                                    <Button id="tutorial-manage-users" variant="outline" size="sm">{t("dashboard.userManagement")}</Button>
-                                </DialogTrigger>
+                        <div className="flex w-full flex-col gap-3 xl:max-w-[42rem] xl:items-end">
+                            <div className="nav-cluster flex flex-wrap items-center gap-2 rounded-[1.5rem] p-2">
+                                {isManager && (
+                                    <Button
+                                        id="tutorial-model-management"
+                                        variant="outline"
+                                        size="sm"
+                                        className="nav-pill h-10 border-border/60 bg-transparent px-4"
+                                        onClick={() => navigate("/app/model-management")}
+                                    >
+                                        <PanelsTopLeft className="h-4 w-4" />
+                                        {t("nav.modelManagement")}
+                                    </Button>
+                                )}
+                                {isSuperAdmin && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="nav-pill h-10 border-border/60 bg-transparent px-4"
+                                        onClick={() => navigate("/app/billing")}
+                                    >
+                                        <CreditCard className="h-4 w-4" />
+                                        Billing Admin
+                                    </Button>
+                                )}
+                                {isAdmin && (
+                                    <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
+                                        <DialogTrigger asChild>
+                                            <Button
+                                                id="tutorial-manage-users"
+                                                variant="outline"
+                                                size="sm"
+                                                className="nav-pill h-10 border-border/60 bg-transparent px-4"
+                                            >
+                                                <Users2 className="h-4 w-4" />
+                                                {t("dashboard.userManagement")}
+                                            </Button>
+                                        </DialogTrigger>
                                 <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                                     <DialogHeader>
                                         <DialogTitle>{t("dashboard.userManagement")}</DialogTitle>
@@ -614,64 +651,76 @@ const Dashboard = () => {
                                 </DialogContent>
                             </Dialog>
                         )}
+                            </div>
 
-                        {isAdmin && (
-                            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button id="tutorial-new-project" variant="secondary">
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        {t("dashboard.newProject")}
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between xl:w-full xl:justify-end">
+                                {isAdmin && (
+                                    <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button
+                                                id="tutorial-new-project"
+                                                variant="secondary"
+                                                className="h-11 w-full justify-center gap-2 rounded-full px-5 sm:w-auto"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                                {t("dashboard.newProject")}
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-md">
+                                            <DialogHeader>
+                                                <DialogTitle>{t("dashboard.createNewProject")}</DialogTitle>
+                                                <DialogDescription>{t("dashboard.createProjectDesc")}</DialogDescription>
+                                            </DialogHeader>
+                                            <div className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="name">{t("dashboard.projectName")}</Label>
+                                                    <Input
+                                                        id="name"
+                                                        placeholder={t("dashboard.placeholderProjectName")}
+                                                        value={newProjectName}
+                                                        onChange={(e) => setNewProjectName(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="desc">{t("dashboard.descriptionOptional")}</Label>
+                                                    <Textarea
+                                                        id="desc"
+                                                        placeholder={t("dashboard.placeholderProjectDesc")}
+                                                        value={newProjectDesc}
+                                                        onChange={(e) => setNewProjectDesc(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <DialogFooter>
+                                                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>{t("common.cancel")}</Button>
+                                                <Button onClick={handleCreateProject} disabled={!newProjectName.trim()}>{t("dashboard.createProject")}</Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
+
+                                <div className="nav-cluster flex w-full items-center justify-between gap-1 rounded-full p-1.5 sm:w-auto">
+                                    <Button
+                                        id="tutorial-help-btn"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="nav-utility h-10 w-10 rounded-full text-muted-foreground hover:text-foreground"
+                                        onClick={startTour}
+                                        title="Start tutorial"
+                                    >
+                                        <HelpCircle className="h-4.5 w-4.5" />
                                     </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>{t("dashboard.createNewProject")}</DialogTitle>
-                                        <DialogDescription>
-                                            {t("dashboard.createProjectDesc")}
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="space-y-4 py-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="name">{t("dashboard.projectName")}</Label>
-                                            <Input
-                                                id="name"
-                                                placeholder={t("dashboard.placeholderProjectName")}
-                                                value={newProjectName}
-                                                onChange={(e) => setNewProjectName(e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="desc">{t("dashboard.descriptionOptional")}</Label>
-                                            <Textarea
-                                                id="desc"
-                                                placeholder={t("dashboard.placeholderProjectDesc")}
-                                                value={newProjectDesc}
-                                                onChange={(e) => setNewProjectDesc(e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-                                    <DialogFooter>
-                                        <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>{t("common.cancel")}</Button>
-                                        <Button onClick={handleCreateProject} disabled={!newProjectName.trim()}>{t("dashboard.createProject")}</Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                        )}
-
-                        <Button
-                            id="tutorial-help-btn"
-                            variant="ghost"
-                            size="icon"
-                            onClick={startTour}
-                            title="Start tutorial"
-                        >
-                            <HelpCircle className="w-5 h-5" />
-                        </Button>
-                        <NotificationBell />
-                        <ThemeToggle />
-                        <UserMenu />
+                                    <NotificationBell buttonClassName="nav-utility h-10 w-10 rounded-full text-muted-foreground hover:text-foreground" />
+                                    <ThemeToggle buttonClassName="nav-utility h-10 w-10 rounded-full border-border/60 bg-transparent text-muted-foreground hover:text-foreground" />
+                                    <UserMenu
+                                        triggerClassName="h-10 w-10 rounded-full"
+                                        avatarClassName="h-10 w-10 text-xs"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div >
+                </div>
 
                 {/* Projects Grid */}
                 {
