@@ -21,6 +21,7 @@ type AuthContextValue = {
   users: User[];
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
+  refreshCurrentUser: () => Promise<void>;
   createUser: (username: string, password: string, roles: Role[]) => Promise<{ ok: boolean; error?: string }>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ ok: boolean; error?: string }>;
   getUserById: (id: string | null | undefined) => User | undefined;
@@ -39,26 +40,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore session on mount using token from sessionStorage
-  useEffect(() => {
+  const refreshCurrentUser = useCallback(async () => {
     const storedToken = sessionStorage.getItem(TOKEN_KEY);
-    if (storedToken) {
+    if (!storedToken) {
+      setAuthToken(null);
+      setCurrentUser(null);
+      return;
+    }
+
+    try {
       setAuthToken(storedToken);
-      // Validate token and get current user
-      apiClient.auth.me()
-        .then((user) => {
-          setCurrentUser(user as User);
-        })
-        .catch(() => {
-          // Token invalid or expired
-          sessionStorage.removeItem(TOKEN_KEY);
-          setAuthToken(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
+      const user = await apiClient.auth.me();
+      setCurrentUser(user as User);
+    } catch {
+      sessionStorage.removeItem(TOKEN_KEY);
+      setAuthToken(null);
+      setCurrentUser(null);
     }
   }, []);
+
+  // Restore session on mount using token from sessionStorage
+  useEffect(() => {
+    refreshCurrentUser().finally(() => setLoading(false));
+  }, [refreshCurrentUser]);
 
   // Load users from server when currentUser changes
   const refreshUsers = useCallback(async () => {
@@ -211,6 +215,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     users,
     login,
     logout,
+    refreshCurrentUser,
     createUser,
     changePassword,
     getUserById,
@@ -218,7 +223,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     updateUserRoles,
     adminResetPassword,
     refreshUsers
-  }), [users, currentUser, login, logout, createUser, changePassword, getUserById, deleteUser, updateUserRoles, adminResetPassword, refreshUsers]);
+  }), [users, currentUser, login, logout, refreshCurrentUser, createUser, changePassword, getUserById, deleteUser, updateUserRoles, adminResetPassword, refreshUsers]);
 
   if (loading) {
     return null;

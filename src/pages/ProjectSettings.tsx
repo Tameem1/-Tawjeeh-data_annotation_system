@@ -34,6 +34,7 @@ import { FormBuilder } from "@/components/FormBuilder";
 import { toast } from "@/components/ui/use-toast";
 import type { Project } from "@/types/data";
 import { SubscriptionAccessCard } from "@/components/SubscriptionAccessCard";
+import { buildDefaultProjectAIPrompt } from "@/utils/aiPromptUtils";
 
 export default function ProjectSettings() {
     const { projectId } = useParams<{ projectId: string }>();
@@ -52,6 +53,7 @@ export default function ProjectSettings() {
     const [managerId, setManagerId] = useState<string | null>(null);
     const [annotatorIds, setAnnotatorIds] = useState<string[]>([]);
     const [guidelines, setGuidelines] = useState("");
+    const [aiPrompt, setAiPrompt] = useState("");
     const [xmlConfig, setXmlConfig] = useState("");
     const [xmlError, setXmlError] = useState("");
     const [iaaEnabled, setIaaEnabled] = useState(false);
@@ -85,6 +87,7 @@ export default function ProjectSettings() {
             setManagerId(proj.managerId ?? null);
             setAnnotatorIds(proj.annotatorIds ?? []);
             setGuidelines(proj.guidelines || "");
+            setAiPrompt(proj.uploadPrompt || "");
             setXmlConfig(proj.xmlConfig || "");
             setIaaEnabled(proj.iaaConfig?.enabled ?? false);
             setIaaPortion(proj.iaaConfig?.portionPercent ?? 20);
@@ -130,6 +133,17 @@ export default function ProjectSettings() {
             toast({ title: t("common.success"), description: t("projectSettings.savedGuidelines") });
         } catch {
             toast({ title: t("common.error"), description: t("projectSettings.failedSaveGuidelines"), variant: "destructive" });
+        }
+    };
+
+    const saveAiPrompt = async () => {
+        if (!project) return;
+        try {
+            await projectService.update({ ...project, uploadPrompt: aiPrompt });
+            setProject(p => p ? { ...p, uploadPrompt: aiPrompt } : p);
+            toast({ title: t("common.success"), description: t("projectSettings.savedAiPrompt") });
+        } catch {
+            toast({ title: t("common.error"), description: t("projectSettings.failedSaveAiPrompt"), variant: "destructive" });
         }
     };
 
@@ -203,6 +217,14 @@ export default function ProjectSettings() {
 
     const adminUsers = allUsers.filter(u => u.roles?.includes("admin") || u.roles?.includes("manager"));
     const annotatorUsers = allUsers.filter(u => u.roles?.includes("annotator"));
+    const defaultAiPrompt = (() => {
+        try {
+            const parsedConfig = xmlConfig.trim() ? parseAnnotationConfigXML(xmlConfig) : null;
+            return buildDefaultProjectAIPrompt(parsedConfig, guidelines);
+        } catch {
+            return buildDefaultProjectAIPrompt(null, guidelines);
+        }
+    })();
 
     return (
         <div className="app-page">
@@ -463,7 +485,41 @@ export default function ProjectSettings() {
                     </CardContent>
                 </Card>
 
-                {/* 6 — IAA */}
+                {/* 6 — AI Prompt */}
+                <Card className="rounded-[2rem]">
+                    <CardHeader>
+                        <CardTitle>{t("projectSettings.aiPromptTitle")}</CardTitle>
+                        <CardDescription>{t("projectSettings.aiPromptDescription")}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <Textarea
+                            value={aiPrompt}
+                            onChange={e => setAiPrompt(e.target.value)}
+                            rows={12}
+                            className="font-mono text-sm"
+                            placeholder={defaultAiPrompt}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                            {t("projectSettings.aiPromptHelp")}
+                        </p>
+                        <div className="rounded-[1.25rem] border border-border/70 bg-muted/30 p-4 space-y-2">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                {t("projectSettings.aiPromptDefaultPreview")}
+                            </p>
+                            <pre className="whitespace-pre-wrap break-words text-xs text-muted-foreground font-mono">
+                                {defaultAiPrompt}
+                            </pre>
+                        </div>
+                        <div className="flex justify-end">
+                            <Button size="sm" onClick={saveAiPrompt}>
+                                <Save className="w-4 h-4 mr-1.5" />
+                                {t("common.save")}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* 7 — IAA */}
                 <Card className="rounded-[2rem]">
                     <CardHeader>
                         <CardTitle>{t("projectSettings.iaaTitle")}</CardTitle>
@@ -509,7 +565,7 @@ export default function ProjectSettings() {
                     </CardContent>
                 </Card>
 
-                {/* 7 — Danger Zone (admin only) */}
+                {/* 8 — Danger Zone (admin only) */}
                 {isAdmin && (
                     <Card className="rounded-[2rem] border-destructive/25">
                         <CardHeader>

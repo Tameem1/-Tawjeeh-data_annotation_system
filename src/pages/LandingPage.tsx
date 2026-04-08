@@ -24,11 +24,14 @@ import { apiClient } from "@/services/apiClient";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSwitcherInline } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/contexts/AuthContext";
+import { UserMenu } from "@/components/UserMenu";
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const { currentUser, refreshCurrentUser } = useAuth();
   const [calendlyUrl, setCalendlyUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [demoForm, setDemoForm] = useState({
@@ -45,6 +48,10 @@ export default function LandingPage() {
       .then((result) => setCalendlyUrl(result.calendlyUrl || ""))
       .catch(() => setCalendlyUrl(""));
   }, []);
+
+  useEffect(() => {
+    refreshCurrentUser().catch(() => undefined);
+  }, [refreshCurrentUser]);
 
   const handleDemoSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -145,9 +152,18 @@ export default function LandingPage() {
             <div className="flex flex-wrap items-center gap-2">
               <LanguageSwitcherInline />
               <ThemeToggle />
-              <Button variant="outline" onClick={() => navigate("/app")}>
-                {t("common.login")}
-              </Button>
+              {currentUser ? (
+                <>
+                  <Button variant="outline" onClick={() => navigate("/app")}>
+                    {t("user.profile")}
+                  </Button>
+                  <UserMenu />
+                </>
+              ) : (
+                <Button variant="outline" onClick={() => navigate("/app")}>
+                  {t("common.login")}
+                </Button>
+              )}
               <Button variant="secondary" onClick={() => document.getElementById("demo-request")?.scrollIntoView({ behavior: "smooth" })}>
                 {t("landing.hero.requestDemo")}
               </Button>

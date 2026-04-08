@@ -87,6 +87,7 @@ import { VersionHistory } from "@/components/VersionHistory";
 import { projectService } from "@/services/projectService";
 import { modelManagementService } from "@/services/modelManagementService";
 import apiClient, { getAuthToken } from "@/services/apiClient";
+import { buildDefaultProjectAIPrompt } from "@/utils/aiPromptUtils";
 
 type AnnotationStatusFilter = 'all' | 'has_final' | DataPoint['status'];
 const COMMENTS_PAGE_SIZE = 10;
@@ -358,6 +359,10 @@ const DataLabelingWorkspace = () => {
   // XML Annotation Config State
   const [annotationConfig, setAnnotationConfig] = useState<AnnotationConfig | null>(null);
   const [annotationFieldValuesMap, setAnnotationFieldValuesMap] = useState<Record<string, Record<string, string | boolean>>>({});
+  const defaultProjectPrompt = useMemo(
+    () => buildDefaultProjectAIPrompt(annotationConfig, projectAccess?.guidelines),
+    [annotationConfig, projectAccess?.guidelines]
+  );
   const syncModelManagementState = useCallback(() => {
     setProviderConnections(modelManagementService.getConnections());
     setModelProfiles(modelManagementService.getProfiles());
@@ -1576,6 +1581,18 @@ const DataLabelingWorkspace = () => {
     return interpolated;
   };
 
+  const getPromptSeedForDataPoint = useCallback((dataPoint: DataPoint, profile?: ModelProfile | null) => {
+    const dataPointPrompt = dataPoint.uploadPrompt?.trim();
+    if (dataPointPrompt) return dataPointPrompt;
+
+    const projectPrompt = projectAccess?.uploadPrompt?.trim();
+    if (projectPrompt) return projectPrompt;
+
+    if (defaultProjectPrompt.trim()) return defaultProjectPrompt;
+
+    return profile?.defaultPrompt?.trim() || '';
+  }, [defaultProjectPrompt, projectAccess?.uploadPrompt]);
+
   // AI processing function for a single model profile
   const processWithProfile = async (dataPoint: DataPoint, modelProfileId: string): Promise<string> => {
     const profile = profileById.get(modelProfileId);
@@ -1588,7 +1605,7 @@ const DataLabelingWorkspace = () => {
     const { getAIProvider } = await import('@/services/aiProviders');
     const provider = getAIProvider(connection.providerId);
 
-    const promptSeed = dataPoint.uploadPrompt || profile.defaultPrompt || '';
+    const promptSeed = getPromptSeedForDataPoint(dataPoint, profile);
     const promptToUse = getInterpolatedPrompt(promptSeed, dataPoint.metadata);
 
     const key = connection.apiKey?.trim() || '';
@@ -1663,11 +1680,10 @@ const DataLabelingWorkspace = () => {
     const perModelTokens: Record<string, number> = {};
     for (const modelProfileId of selectedModels) {
       const profile = profileById.get(modelProfileId);
-      const promptSeed = profile?.defaultPrompt || '';
       const encoder = getEncoderForProfile(modelProfileId);
       let modelTokens = 0;
       for (const dp of pendingDataPoints) {
-        const promptToUse = getInterpolatedPrompt(dp.uploadPrompt || promptSeed || '', dp.metadata);
+        const promptToUse = getInterpolatedPrompt(getPromptSeedForDataPoint(dp, profile), dp.metadata);
         const combined = promptToUse ? `${promptToUse}\n\n${dp.content}` : dp.content;
         const tokens = encoder.encode(combined || '').length;
         totalTokens += tokens;
