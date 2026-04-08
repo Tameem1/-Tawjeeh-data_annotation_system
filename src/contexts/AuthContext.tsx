@@ -111,6 +111,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!roles || roles.length === 0) {
       return { ok: false, error: "Select at least one role" };
     }
+    if (!currentUser?.roles.includes("super_admin") && roles.includes("admin")) {
+      return { ok: false, error: "Only the super admin can create admin accounts" };
+    }
 
     try {
       const effectivePassword = password.trim().length > 0 ? password : "changeme";
@@ -129,7 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const message = error instanceof Error ? error.message : "Failed to create user";
       return { ok: false, error: message };
     }
-  }, [refreshUsers]);
+  }, [currentUser, refreshUsers]);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string): Promise<{ ok: boolean; error?: string }> => {
     if (!currentUser) return { ok: false, error: "Not logged in" };
@@ -180,6 +183,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const user = users.find(u => u.id === userId);
     if (!user) return { ok: false, error: "User not found" };
     if (user.username === "admin") return { ok: false, error: "Cannot change super admin roles" };
+    if (!currentUser?.roles.includes("super_admin") && newRoles.includes("admin")) {
+      return { ok: false, error: "Only the super admin can assign admin roles" };
+    }
 
     try {
       const finalRoles = newRoles.length === 0 ? ["annotator"] : newRoles;
@@ -190,7 +196,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const message = error instanceof Error ? error.message : "Failed to update roles";
       return { ok: false, error: message };
     }
-  }, [users, refreshUsers]);
+  }, [currentUser, users, refreshUsers]);
 
   const adminResetPassword = useCallback(async (userId: string, newPassword: string): Promise<{ ok: boolean; error?: string }> => {
     const user = users.find(u => u.id === userId);

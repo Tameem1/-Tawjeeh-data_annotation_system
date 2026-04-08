@@ -142,6 +142,11 @@ const Dashboard = () => {
     const isAdmin = currentUser?.roles?.includes("admin");
     const isManager = currentUser?.roles?.includes("manager") || isAdmin;
     const isSuperAdmin = currentUser?.roles?.includes("super_admin");
+    const assignableRoleOptions = [
+        { id: "manager", label: t("dashboard.roles.manager"), icon: Briefcase },
+        { id: "annotator", label: t("dashboard.roles.annotator"), icon: PenTool },
+        ...(isSuperAdmin ? [{ id: "admin", label: t("dashboard.roles.admin"), icon: Shield }] : [])
+    ];
 
     const tutorialSteps = useMemo(() => {
         if (!currentUser) return [];
@@ -399,11 +404,7 @@ const Dashboard = () => {
                                                 <div className="space-y-1.5">
                                                     <Label>{t("dashboard.role")}</Label>
                                                     <div className="flex flex-wrap gap-2">
-                                                        {[
-                                                            { id: "manager", label: t("dashboard.roles.manager"), icon: Briefcase },
-                                                            { id: "annotator", label: t("dashboard.roles.annotator"), icon: PenTool },
-                                                            { id: "admin", label: t("dashboard.roles.admin"), icon: Shield }
-                                                        ].map(({ id, label, icon: Icon }) => {
+                                                        {assignableRoleOptions.map(({ id, label, icon: Icon }) => {
                                                             const isSelected = id === "admin" ? newRoles.includes("admin") : newRoles.includes(id as Role);
                                                             const isDisabled = newRoles.includes("admin") && id !== "admin";
 
@@ -526,11 +527,7 @@ const Dashboard = () => {
                                                                         <div className="space-y-1.5">
                                                                             <Label>{t("dashboard.role")}</Label>
                                                                             <div className="flex flex-wrap gap-2 pt-2">
-                                                                                {[
-                                                                                    { id: "manager", label: t("dashboard.roles.manager"), icon: Briefcase },
-                                                                                    { id: "annotator", label: t("dashboard.roles.annotator"), icon: PenTool },
-                                                                                    { id: "admin", label: t("dashboard.roles.admin"), icon: Shield }
-                                                                                ].map(({ id, label, icon: Icon }) => {
+                                                                                {assignableRoleOptions.map(({ id, label, icon: Icon }) => {
                                                                                     const isSelected = id === "admin" ? editRoles.includes("admin") : editRoles.includes(id as Role);
                                                                                     const isDisabled = editRoles.includes("admin") && id !== "admin";
 

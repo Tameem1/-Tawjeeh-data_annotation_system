@@ -24,8 +24,8 @@ const uuid = () => crypto.randomUUID();
 const now = () => Date.now();
 
 const insertProject = db.prepare(`
-  INSERT INTO projects (id, name, description, manager_id, xml_config, guidelines, is_demo, created_at, updated_at)
-  VALUES (@id, @name, @description, @managerId, @xmlConfig, @guidelines, 0, @ts, @ts)
+  INSERT INTO projects (id, name, description, admin_id, manager_id, xml_config, guidelines, is_demo, created_at, updated_at)
+  VALUES (@id, @name, @description, @adminId, @managerId, @xmlConfig, @guidelines, 0, @ts, @ts)
 `);
 
 const insertPoint = db.prepare(`
@@ -332,6 +332,7 @@ for (const proj of PROJECTS) {
     id: projectId,
     name: proj.name,
     description: proj.description,
+    adminId,
     managerId: adminId,
     xmlConfig: proj.xmlConfig,
     guidelines: proj.guidelines,

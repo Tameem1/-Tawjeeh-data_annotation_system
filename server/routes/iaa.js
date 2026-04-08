@@ -1,5 +1,6 @@
 import { getDatabase } from '../services/database.js';
 import { requireAuth } from '../middleware/auth.js';
+import { getTenantAdminId, isProjectInTenant } from '../services/tenantScope.js';
 
 export function registerIAARoutes(app) {
     // GET /api/projects/:id/iaa?threshold=0.7
@@ -16,8 +17,11 @@ export function registerIAARoutes(app) {
             const threshold = Math.min(1, Math.max(0, parseFloat(req.query.threshold) || 0.7));
 
             // Verify project exists and user has access
-            const project = db.prepare('SELECT id, manager_id FROM projects WHERE id = ?').get(projectId);
+            const project = db.prepare('SELECT id, admin_id, manager_id FROM projects WHERE id = ?').get(projectId);
             if (!project) return res.status(404).json({ error: 'Project not found' });
+            if (!isProjectInTenant(project, getTenantAdminId(req.user))) {
+                return res.status(403).json({ error: 'Not authorised for this project' });
+            }
             if (!isAdmin && project.manager_id !== req.user.id) {
                 return res.status(403).json({ error: 'Not authorised for this project' });
             }
@@ -29,7 +33,10 @@ export function registerIAARoutes(app) {
             ).all(projectId);
 
             // Fetch user names for annotation attribution
-            const users = db.prepare('SELECT id, username FROM users').all();
+            const tenantAdminId = getTenantAdminId(req.user);
+            const users = tenantAdminId === null
+                ? db.prepare('SELECT id, username FROM users').all()
+                : db.prepare('SELECT id, username FROM users WHERE id = ? OR admin_id = ?').all(tenantAdminId, tenantAdminId);
             const userMap = Object.fromEntries(users.map(u => [u.id, u.username]));
 
             const items = [];

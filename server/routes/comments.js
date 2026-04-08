@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getDatabase } from '../services/database.js';
 import { createNotification } from '../services/notificationService.js';
+import { getTenantAdminId, isProjectInTenant } from '../services/tenantScope.js';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -34,13 +35,17 @@ const mapComment = (comment) => ({
 });
 
 const getProject = (db, projectId) => {
-    return db.prepare('SELECT id, manager_id FROM projects WHERE id = ?').get(projectId);
+    return db.prepare('SELECT id, admin_id, manager_id FROM projects WHERE id = ?').get(projectId);
 };
 
 const hasProjectAccess = (db, projectId, user) => {
     const project = getProject(db, projectId);
     if (!project) {
         return { ok: false, status: 404, error: 'Project not found', project: null };
+    }
+
+    if (!isProjectInTenant(project, getTenantAdminId(user))) {
+        return { ok: false, status: 403, error: 'Access denied', project };
     }
 
     if (user.roles?.includes('admin')) {

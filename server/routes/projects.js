@@ -7,6 +7,8 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { createImportJob, getImportJob } from '../services/importJobService.js';
 import { getImportMaxFileSizeBytes, parseImportedFile } from '../services/projectImport.js';
 import { createImportObjectKey, createPresignedImportUpload, getR2UploadLimits, headImportObject, isR2Configured } from '../services/r2Service.js';
+import { getTenantAdminId, isProjectInTenant, isUserInTenant } from '../services/tenantScope.js';
+import { normalizeRoles } from '../services/permissions.js';
 
 /**
  * Projects API routes
@@ -14,6 +16,29 @@ import { createImportObjectKey, createPresignedImportUpload, getR2UploadLimits, 
 export function registerProjectRoutes(app) {
     const db = getDatabase();
     const importChunkSize = 500;
+    const getUserRecord = (userId) => (
+        userId
+            ? db.prepare('SELECT id, roles, admin_id FROM users WHERE id = ?').get(userId)
+            : null
+    );
+
+    const ensureAssignableUsers = ({ managerId, annotatorIds = [], tenantAdminId }) => {
+        if (managerId) {
+            const manager = getUserRecord(managerId);
+            if (!manager || !isUserInTenant({ ...manager, roles: normalizeRoles(JSON.parse(manager.roles)) }, tenantAdminId)) {
+                return 'Selected manager is outside this admin workspace.';
+            }
+        }
+
+        for (const annotatorId of annotatorIds) {
+            const annotator = getUserRecord(annotatorId);
+            if (!annotator || !isUserInTenant({ ...annotator, roles: normalizeRoles(JSON.parse(annotator.roles)) }, tenantAdminId)) {
+                return 'One or more selected annotators are outside this admin workspace.';
+            }
+        }
+
+        return null;
+    };
 
     const upsertProjectStats = db.prepare(`
       INSERT INTO project_stats (project_id, total_accepted, total_rejected, total_edited, total_processed, average_confidence, session_time)
@@ -120,6 +145,11 @@ export function registerProjectRoutes(app) {
             return { project: null, error: { status: 401, body: { error: 'Authentication required' } } };
         }
 
+        const tenantAdminId = getTenantAdminId(user);
+        if (!isProjectInTenant(project, tenantAdminId)) {
+            return { project: null, error: { status: 403, body: { error: 'Access denied' } } };
+        }
+
         if (!user.roles?.includes('admin')) {
             const isManager = project.manager_id === user.id;
             const isAnnotator = db.prepare(
@@ -189,33 +219,43 @@ export function registerProjectRoutes(app) {
                 // No user - return empty for unauthenticated requests
                 projects = [];
             } else if (user.roles?.includes('admin')) {
-                // Admin sees all projects
-                projects = db.prepare(`
+                const tenantAdminId = getTenantAdminId(user);
+                projects = tenantAdminId === null
+                    ? db.prepare(`
           SELECT p.*, 
                  (SELECT COUNT(*) FROM data_points WHERE project_id = p.id) as data_count
           FROM projects p
           ORDER BY p.updated_at DESC
-        `).all();
+        `).all()
+                    : db.prepare(`
+          SELECT p.*, 
+                 (SELECT COUNT(*) FROM data_points WHERE project_id = p.id) as data_count
+          FROM projects p
+          WHERE p.admin_id = ?
+          ORDER BY p.updated_at DESC
+        `).all(tenantAdminId);
             } else if (user.roles?.includes('manager')) {
                 // Manager sees projects they manage or are assigned to
+                const tenantAdminId = getTenantAdminId(user);
                 projects = db.prepare(`
           SELECT DISTINCT p.*, 
                  (SELECT COUNT(*) FROM data_points WHERE project_id = p.id) as data_count
           FROM projects p
           LEFT JOIN project_annotators pa ON p.id = pa.project_id
-          WHERE p.manager_id = ? OR pa.user_id = ?
+          WHERE p.admin_id = ? AND (p.manager_id = ? OR pa.user_id = ?)
           ORDER BY p.updated_at DESC
-        `).all(user.id, user.id);
+        `).all(tenantAdminId, user.id, user.id);
             } else {
                 // Annotator sees only assigned projects
+                const tenantAdminId = getTenantAdminId(user);
                 projects = db.prepare(`
           SELECT p.*, 
                  (SELECT COUNT(*) FROM data_points WHERE project_id = p.id) as data_count
           FROM projects p
           INNER JOIN project_annotators pa ON p.id = pa.project_id
-          WHERE pa.user_id = ?
+          WHERE p.admin_id = ? AND pa.user_id = ?
           ORDER BY p.updated_at DESC
-        `).all(user.id);
+        `).all(tenantAdminId, user.id);
             }
 
             // Get annotator IDs for each project
@@ -266,6 +306,11 @@ export function registerProjectRoutes(app) {
         }
         const { id } = req.params;
         try {
+            const access = getProjectAccess(id, user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
+            }
+
             const rows = db.prepare(`
                 SELECT
                     annotator_id,
@@ -355,22 +400,9 @@ export function registerProjectRoutes(app) {
             const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
             const offset = limit ? (page - 1) * limit : 0;
 
-            // Validate project exists and user has access
-            const project = db.prepare('SELECT manager_id FROM projects WHERE id = ?').get(id);
-            if (!project) {
-                return res.status(404).json({ error: 'Project not found' });
-            }
-
-            const user = req.user;
-            if (user && !user.roles?.includes('admin')) {
-                const isManager = project.manager_id === user.id;
-                const isAnnotator = db.prepare(
-                    'SELECT 1 FROM project_annotators WHERE project_id = ? AND user_id = ?'
-                ).get(id, user.id);
-
-                if (!isManager && !isAnnotator) {
-                    return res.status(403).json({ error: 'Access denied' });
-                }
+            const access = getProjectAccess(id, req.user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
             }
 
             const total = db.prepare('SELECT COUNT(*) as count FROM data_points WHERE project_id = ?').get(id).count;
@@ -446,24 +478,11 @@ export function registerProjectRoutes(app) {
     app.get('/api/projects/:id', (req, res) => {
         try {
             const { id } = req.params;
-            const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
-
-            if (!project) {
-                return res.status(404).json({ error: 'Project not found' });
+            const access = getProjectAccess(id, req.user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
             }
-
-            // Check access
-            const user = req.user;
-            if (user && !user.roles?.includes('admin')) {
-                const isManager = project.manager_id === user.id;
-                const isAnnotator = db.prepare(
-                    'SELECT 1 FROM project_annotators WHERE project_id = ? AND user_id = ?'
-                ).get(id, user.id);
-
-                if (!isManager && !isAnnotator) {
-                    return res.status(403).json({ error: 'Access denied' });
-                }
-            }
+            const project = access.project;
 
             // Get data points (OPTIONAL: now handled by pagination endpoint /data)
             // For backward compatibility or small projects, we could optionally return them,
@@ -551,19 +570,26 @@ export function registerProjectRoutes(app) {
     // Create project
     app.post('/api/projects', (req, res) => {
         try {
+            const currentUser = req.user;
             const { name, description, managerId, annotatorIds = [], xmlConfig, uploadPrompt, customFieldName, guidelines } = req.body;
 
             if (!name) {
                 return res.status(400).json({ error: 'Project name is required' });
             }
 
+            const tenantAdminId = getTenantAdminId(currentUser) || currentUser.id;
+            const assignmentError = ensureAssignableUsers({ managerId, annotatorIds, tenantAdminId });
+            if (assignmentError) {
+                return res.status(400).json({ error: assignmentError });
+            }
+
             const id = crypto.randomUUID();
             const now = Date.now();
 
             db.prepare(`
-        INSERT INTO projects (id, name, description, manager_id, xml_config, upload_prompt, custom_field_name, guidelines, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, name, description || null, managerId || null, xmlConfig || null, uploadPrompt || null, customFieldName || null, guidelines || null, now, now);
+        INSERT INTO projects (id, name, description, admin_id, manager_id, xml_config, upload_prompt, custom_field_name, guidelines, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, name, description || null, tenantAdminId, managerId || null, xmlConfig || null, uploadPrompt || null, customFieldName || null, guidelines || null, now, now);
 
             // Add annotators
             const insertAnnotator = db.prepare('INSERT INTO project_annotators (project_id, user_id) VALUES (?, ?)');
@@ -854,9 +880,9 @@ export function registerProjectRoutes(app) {
                 return res.status(400).json({ error: 'dataPoints must be an array' });
             }
 
-            const existing = db.prepare('SELECT id FROM projects WHERE id = ?').get(id);
-            if (!existing) {
-                return res.status(404).json({ error: 'Project not found' });
+            const access = getProjectManageAccess(id, req.user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
             }
 
             const now = Date.now();
@@ -877,6 +903,24 @@ export function registerProjectRoutes(app) {
             const existing = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
             if (!existing) {
                 return res.status(404).json({ error: 'Project not found' });
+            }
+
+            const access = getProjectManageAccess(id, req.user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
+            }
+
+            const tenantAdminId = existing.admin_id;
+            const normalizedAnnotatorIds = Array.isArray(annotatorIds) ? annotatorIds : undefined;
+            const assignmentError = ensureAssignableUsers({
+                managerId: managerId !== undefined ? managerId : existing.manager_id,
+                annotatorIds: normalizedAnnotatorIds !== undefined
+                    ? normalizedAnnotatorIds
+                    : db.prepare('SELECT user_id FROM project_annotators WHERE project_id = ?').all(id).map((row) => row.user_id),
+                tenantAdminId
+            });
+            if (assignmentError) {
+                return res.status(400).json({ error: assignmentError });
             }
 
             const now = Date.now();
@@ -957,9 +1001,13 @@ export function registerProjectRoutes(app) {
             const user = req.user;
 
             // Only admins or the project manager can delete
-            const project = db.prepare('SELECT manager_id FROM projects WHERE id = ?').get(id);
+            const project = db.prepare('SELECT admin_id, manager_id FROM projects WHERE id = ?').get(id);
             if (!project) {
                 return res.status(404).json({ error: 'Project not found' });
+            }
+
+            if (!isProjectInTenant(project, getTenantAdminId(user))) {
+                return res.status(403).json({ error: 'Forbidden' });
             }
 
             const isAdmin = user.roles.includes('admin');
@@ -988,6 +1036,10 @@ export function registerProjectRoutes(app) {
             const { id } = req.params;
             const { action, details } = req.body;
             const user = req.user;
+            const access = getProjectAccess(id, user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
+            }
 
             const logId = crypto.randomUUID();
             const now = Date.now();
@@ -1008,6 +1060,10 @@ export function registerProjectRoutes(app) {
     app.get('/api/projects/:id/snapshots', (req, res) => {
         try {
             const { id } = req.params;
+            const access = getProjectAccess(id, req.user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
+            }
             const snapshots = db.prepare('SELECT * FROM snapshots WHERE project_id = ? ORDER BY created_at DESC').all(id);
 
             res.json(snapshots.map(s => ({
@@ -1029,6 +1085,10 @@ export function registerProjectRoutes(app) {
         try {
             const { id } = req.params;
             const { name, description, dataPoints, stats } = req.body;
+            const access = getProjectManageAccess(id, req.user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
+            }
 
             const snapshotId = crypto.randomUUID();
             const now = Date.now();
@@ -1047,6 +1107,10 @@ export function registerProjectRoutes(app) {
 
     app.delete('/api/projects/:id/snapshots/:snapshotId', requireAuth, requireRole(['admin', 'manager']), (req, res) => {
         try {
+            const access = getProjectManageAccess(req.params.id, req.user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
+            }
             const { snapshotId } = req.params;
             db.prepare('DELETE FROM snapshots WHERE id = ?').run(snapshotId);
             res.json({ success: true });
@@ -1066,6 +1130,11 @@ export function registerProjectRoutes(app) {
             const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId);
             if (!project) {
                 return res.status(404).json({ error: 'Project not found' });
+            }
+
+            const access = getProjectAccess(projectId, req.user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
             }
 
             // Verify data point exists and belongs to project
@@ -1169,22 +1238,9 @@ export function registerProjectRoutes(app) {
             const offset = limit ? (page - 1) * limit : 0;
 
             // Validate project exists and user has access (reusing logic from getById ideally, but simple check here)
-            const project = db.prepare('SELECT manager_id FROM projects WHERE id = ?').get(projectId);
-            if (!project) {
-                return res.status(404).json({ error: 'Project not found' });
-            }
-
-            // Check access (simplified for now, ideally strictly check project_annotators too if not manager)
-            const user = req.user;
-            if (user && !user.roles?.includes('admin')) {
-                const isManager = project.manager_id === user.id;
-                const isAnnotator = db.prepare(
-                    'SELECT 1 FROM project_annotators WHERE project_id = ? AND user_id = ?'
-                ).get(projectId, user.id);
-
-                if (!isManager && !isAnnotator) {
-                    return res.status(403).json({ error: 'Access denied' });
-                }
+            const access = getProjectAccess(projectId, req.user);
+            if (access.error) {
+                return res.status(access.error.status).json(access.error.body);
             }
 
             const total = db.prepare('SELECT COUNT(*) as count FROM data_points WHERE project_id = ?').get(projectId).count;

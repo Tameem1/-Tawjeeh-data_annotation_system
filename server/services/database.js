@@ -68,9 +68,11 @@ function createSchema() {
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       roles TEXT NOT NULL DEFAULT '["annotator"]',
+      admin_id TEXT,
       must_change_password INTEGER DEFAULT 0,
       created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
 
@@ -80,12 +82,14 @@ function createSchema() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       description TEXT,
+      admin_id TEXT NOT NULL,
       manager_id TEXT,
       xml_config TEXT,
       upload_prompt TEXT,
       custom_field_name TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
+      FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
@@ -244,12 +248,14 @@ function createSchema() {
       id TEXT PRIMARY KEY,
       token TEXT UNIQUE NOT NULL,
       created_by TEXT NOT NULL,
+      admin_id TEXT,
       default_roles TEXT DEFAULT '["annotator"]',
       max_uses INTEGER DEFAULT 0,
       current_uses INTEGER DEFAULT 0,
       expires_at INTEGER,
       is_active INTEGER DEFAULT 1,
       created_at INTEGER NOT NULL,
+      FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
@@ -421,6 +427,9 @@ function createSchema() {
     CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id);
     CREATE INDEX IF NOT EXISTS idx_project_annotators_user ON project_annotators(user_id);
+    CREATE INDEX IF NOT EXISTS idx_users_admin_id ON users(admin_id);
+    CREATE INDEX IF NOT EXISTS idx_projects_admin_id ON projects(admin_id);
+    CREATE INDEX IF NOT EXISTS idx_invite_tokens_admin_id ON invite_tokens(admin_id);
     CREATE INDEX IF NOT EXISTS idx_invite_tokens_token ON invite_tokens(token);
     CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at);
     CREATE INDEX IF NOT EXISTS idx_import_jobs_status_created ON import_jobs(status, created_at);
@@ -458,6 +467,9 @@ function createSchema() {
     `ALTER TABLE data_points ADD COLUMN qa_status TEXT DEFAULT 'pending_review'`,
     `ALTER TABLE data_points ADD COLUMN qa_reviewer_id TEXT`,
     `ALTER TABLE import_jobs ADD COLUMN rows_imported INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN admin_id TEXT`,
+    `ALTER TABLE projects ADD COLUMN admin_id TEXT`,
+    `ALTER TABLE invite_tokens ADD COLUMN admin_id TEXT`,
   ];
   for (const sql of migrations) {
     try { db.exec(sql); } catch (_) { /* already exists */ }
@@ -489,6 +501,71 @@ function createSchema() {
   }
 
   const now = Date.now();
+
+  const adminUsers = db.prepare(`
+    SELECT id, roles
+    FROM users
+    ORDER BY created_at ASC
+  `).all();
+  const nonSuperAdmins = adminUsers.filter((user) => {
+    try {
+      const roles = JSON.parse(user.roles);
+      return Array.isArray(roles) && roles.includes('admin') && !roles.includes('super_admin');
+    } catch {
+      return false;
+    }
+  });
+  const fallbackAdminId = nonSuperAdmins[0]?.id || seedAdmin?.id || null;
+
+  if (fallbackAdminId) {
+    db.prepare(`
+      UPDATE users
+      SET admin_id = id
+      WHERE admin_id IS NULL
+        AND roles LIKE '%"admin"%'
+        AND roles NOT LIKE '%"super_admin"%'
+    `).run();
+
+    db.prepare(`
+      UPDATE users
+      SET admin_id = ?
+      WHERE admin_id IS NULL
+        AND (roles NOT LIKE '%"admin"%' OR roles LIKE '%"super_admin"%')
+    `).run(fallbackAdminId);
+
+    db.prepare(`
+      UPDATE projects
+      SET admin_id = COALESCE(
+        (SELECT CASE
+          WHEN manager_id IS NOT NULL THEN
+            (SELECT CASE
+              WHEN roles LIKE '%"admin"%' AND roles NOT LIKE '%"super_admin"%' THEN id
+              ELSE admin_id
+            END
+            FROM users
+            WHERE id = projects.manager_id)
+          ELSE NULL
+        END),
+        ?
+      )
+      WHERE admin_id IS NULL
+    `).run(fallbackAdminId);
+
+    db.prepare(`
+      UPDATE invite_tokens
+      SET admin_id = COALESCE(
+        (SELECT CASE
+          WHEN roles LIKE '%"admin"%' AND roles NOT LIKE '%"super_admin"%' THEN id
+          ELSE admin_id
+        END
+        FROM users
+        WHERE id = invite_tokens.created_by),
+        ?
+      )
+      WHERE admin_id IS NULL
+    `).run(fallbackAdminId);
+  }
+
   const upsertSetting = db.prepare(`
     INSERT INTO app_settings (key, value, updated_at)
     VALUES (?, ?, ?)
