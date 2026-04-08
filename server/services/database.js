@@ -418,30 +418,6 @@ function createSchema() {
     )
   `);
 
-  // Create indexes for common queries
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_data_points_project ON data_points(project_id);
-    CREATE INDEX IF NOT EXISTS idx_data_points_status ON data_points(status);
-    CREATE INDEX IF NOT EXISTS idx_comments_project_data_point ON data_point_comments(project_id, data_point_id);
-    CREATE INDEX IF NOT EXISTS idx_comments_created_at ON data_point_comments(created_at);
-    CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
-    CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id);
-    CREATE INDEX IF NOT EXISTS idx_project_annotators_user ON project_annotators(user_id);
-    CREATE INDEX IF NOT EXISTS idx_users_admin_id ON users(admin_id);
-    CREATE INDEX IF NOT EXISTS idx_projects_admin_id ON projects(admin_id);
-    CREATE INDEX IF NOT EXISTS idx_invite_tokens_admin_id ON invite_tokens(admin_id);
-    CREATE INDEX IF NOT EXISTS idx_invite_tokens_token ON invite_tokens(token);
-    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at);
-    CREATE INDEX IF NOT EXISTS idx_import_jobs_status_created ON import_jobs(status, created_at);
-    CREATE INDEX IF NOT EXISTS idx_import_jobs_project_created ON import_jobs(project_id, created_at);
-    CREATE INDEX IF NOT EXISTS idx_import_staging_job_order ON import_staging_data_points(job_id, row_order);
-    CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
-    CREATE INDEX IF NOT EXISTS idx_subscriptions_status_expires ON subscriptions(status, expires_at);
-    CREATE INDEX IF NOT EXISTS idx_payment_records_user_paid_at ON payment_records(user_id, paid_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_demo_requests_status_created ON demo_requests(status, created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_subscription_email_log_user_created ON subscription_email_log(user_id, created_at DESC);
-  `);
-
   // Migrations — add columns if they don't exist yet
   const migrations = [
     `ALTER TABLE data_points ADD COLUMN is_iaa INTEGER DEFAULT 0`,
@@ -474,6 +450,30 @@ function createSchema() {
   for (const sql of migrations) {
     try { db.exec(sql); } catch (_) { /* already exists */ }
   }
+
+  // Create indexes for common queries after migrations so legacy DBs have the needed columns first
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_data_points_project ON data_points(project_id);
+    CREATE INDEX IF NOT EXISTS idx_data_points_status ON data_points(status);
+    CREATE INDEX IF NOT EXISTS idx_comments_project_data_point ON data_point_comments(project_id, data_point_id);
+    CREATE INDEX IF NOT EXISTS idx_comments_created_at ON data_point_comments(created_at);
+    CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id);
+    CREATE INDEX IF NOT EXISTS idx_project_annotators_user ON project_annotators(user_id);
+    CREATE INDEX IF NOT EXISTS idx_users_admin_id ON users(admin_id);
+    CREATE INDEX IF NOT EXISTS idx_projects_admin_id ON projects(admin_id);
+    CREATE INDEX IF NOT EXISTS idx_invite_tokens_admin_id ON invite_tokens(admin_id);
+    CREATE INDEX IF NOT EXISTS idx_invite_tokens_token ON invite_tokens(token);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at);
+    CREATE INDEX IF NOT EXISTS idx_import_jobs_status_created ON import_jobs(status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_import_jobs_project_created ON import_jobs(project_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_import_staging_job_order ON import_staging_data_points(job_id, row_order);
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_status_expires ON subscriptions(status, expires_at);
+    CREATE INDEX IF NOT EXISTS idx_payment_records_user_paid_at ON payment_records(user_id, paid_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_demo_requests_status_created ON demo_requests(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_subscription_email_log_user_created ON subscription_email_log(user_id, created_at DESC);
+  `);
 
   // Seed default admin user if no users exist
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
