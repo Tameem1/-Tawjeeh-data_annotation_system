@@ -3,6 +3,7 @@ import { generateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { getUserAccessState } from '../services/billingService.js';
+import { PLAN_DEFINITIONS } from '../../shared/billing.js';
 import { assertRoles, isSuperAdmin, normalizeRoles } from '../services/permissions.js';
 import { assertTenantAccess, canManageAdminRole, getTenantOrganizationId, isTenantUser, isUserInTenant } from '../services/tenantScope.js';
 
@@ -93,6 +94,9 @@ function createDemoProject(db, userId, username, roles, adminId, organizationId)
  */
 export function registerUserRoutes(app) {
     const db = getDatabase();
+    const INCLUDED_SEATS = PLAN_DEFINITIONS.monthly?.includedSeats || { managers: 2, annotators: 10 };
+    const CONTACT_US_MESSAGE = 'You have reached the included user limit for your plan. Please contact us to add more users.';
+
     const createOrganizationForAdmin = (adminUserId, username) => {
         const existing = db.prepare('SELECT id FROM organizations WHERE owner_admin_user_id = ?').get(adminUserId);
         if (existing?.id) {
@@ -131,6 +135,50 @@ export function registerUserRoutes(app) {
             WHERE organization_id = ?
             ORDER BY created_at DESC
         `).all(organizationId);
+    };
+
+    const getSeatUsageForAdmin = (adminId, excludeUserId = null) => {
+        const rows = db.prepare(`
+            SELECT id, roles
+            FROM users
+            WHERE admin_id = ?
+              AND id != ?
+        `).all(adminId, excludeUserId || '');
+
+        return rows.reduce((totals, row) => {
+            const roles = normalizeRoles(JSON.parse(row.roles));
+            if (roles.includes('manager') && !roles.includes('admin')) {
+                totals.managers += 1;
+            }
+            if (roles.includes('annotator') && !roles.includes('manager') && !roles.includes('admin')) {
+                totals.annotators += 1;
+            }
+            return totals;
+        }, { managers: 0, annotators: 0 });
+    };
+
+    const getManagedSeatDelta = (roles) => {
+        const normalized = normalizeRoles(roles);
+        return {
+            managers: normalized.includes('manager') && !normalized.includes('admin') ? 1 : 0,
+            annotators: normalized.includes('annotator') && !normalized.includes('manager') && !normalized.includes('admin') ? 1 : 0,
+        };
+    };
+
+    const validateManagedUserSeats = (adminId, roles, excludeUserId = null) => {
+        if (!adminId) {
+            return 'Managed users must belong to an admin account.';
+        }
+
+        const usage = getSeatUsageForAdmin(adminId, excludeUserId);
+        const delta = getManagedSeatDelta(roles);
+        if (usage.managers + delta.managers > INCLUDED_SEATS.managers) {
+            return CONTACT_US_MESSAGE;
+        }
+        if (usage.annotators + delta.annotators > INCLUDED_SEATS.annotators) {
+            return CONTACT_US_MESSAGE;
+        }
+        return null;
     };
 
     // Get all users (admin or manager only)
@@ -225,18 +273,26 @@ export function registerUserRoutes(app) {
                 }
             }
 
+            const id = crypto.randomUUID();
+            const adminId = sanitized.includes('admin') && !sanitized.includes('super_admin')
+                ? id
+                : (currentUser.admin_id || currentUser.id);
+
+            if (!sanitized.includes('admin')) {
+                const limitError = validateManagedUserSeats(adminId, sanitized);
+                if (limitError) {
+                    return res.status(400).json({ error: limitError });
+                }
+            }
+
             // Check if username already exists
             const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
             if (existing) {
                 return res.status(409).json({ error: 'Username already exists' });
             }
 
-            const id = crypto.randomUUID();
             const now = Date.now();
             const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-            const adminId = sanitized.includes('admin') && !sanitized.includes('super_admin')
-                ? id
-                : (currentUser.admin_id || currentUser.id);
             const organizationId = sanitized.includes('admin') && !sanitized.includes('super_admin')
                 ? null
                 : getTenantOrganizationId(currentUser);
@@ -319,6 +375,15 @@ export function registerUserRoutes(app) {
                 if ((sanitized.includes('admin') || sanitized.includes('super_admin')) && !canManageAdminRole(currentUser)) {
                     return res.status(403).json({ error: 'Only a super admin can assign the admin role' });
                 }
+
+                if (!sanitized.includes('admin')) {
+                    const nextAdminId = existing.admin_id || currentUser.admin_id || currentUser.id;
+                    const limitError = validateManagedUserSeats(nextAdminId, sanitized, id);
+                    if (limitError) {
+                        return res.status(400).json({ error: limitError });
+                    }
+                }
+
                 updates.push('roles = ?');
                 values.push(JSON.stringify(sanitized));
 
@@ -431,7 +496,13 @@ export function registerUserRoutes(app) {
 
             const roles = normalizeRoles(JSON.parse(user.roles));
             const token = generateToken({ id: user.id, username: user.username, roles });
-            const accessState = getUserAccessState({ id: user.id, username: user.username, roles });
+            const accessState = getUserAccessState({
+                id: user.id,
+                username: user.username,
+                roles,
+                admin_id: user.admin_id ?? null,
+                organization_id: user.organization_id ?? null,
+            });
 
             res.json({
                 token,
@@ -468,7 +539,9 @@ export function registerUserRoutes(app) {
         const accessState = getUserAccessState({
             id: user.id,
             username: user.username,
-            roles: normalizedRoles
+            roles: normalizedRoles,
+            admin_id: user.admin_id ?? null,
+            organization_id: user.organization_id ?? null,
         });
 
         res.json({
@@ -653,6 +726,11 @@ export function registerUserRoutes(app) {
                 || db.prepare('SELECT organization_id FROM users WHERE id = ?').get(adminId)?.organization_id
                 || null;
 
+            const limitError = validateManagedUserSeats(adminId, roles);
+            if (limitError) {
+                return res.status(400).json({ error: limitError });
+            }
+
             db.prepare(`
                 INSERT INTO users (id, username, password, roles, admin_id, organization_id, must_change_password, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
@@ -668,7 +746,9 @@ export function registerUserRoutes(app) {
             const accessState = getUserAccessState({
                 id: userId,
                 username,
-                roles
+                roles,
+                admin_id: adminId,
+                organization_id: organizationId,
             });
 
             res.status(201).json({

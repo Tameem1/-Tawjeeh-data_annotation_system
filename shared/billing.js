@@ -4,18 +4,30 @@ export const PLAN_DEFINITIONS = {
     label: 'Monthly',
     priceCents: 2000,
     durationMonths: 1,
+    includedSeats: {
+      managers: 2,
+      annotators: 10,
+    },
   },
   yearly: {
     key: 'yearly',
     label: 'Yearly',
     priceCents: 20000,
     durationMonths: 12,
+    includedSeats: {
+      managers: 2,
+      annotators: 10,
+    },
   },
   lifetime: {
     key: 'lifetime',
     label: 'Lifetime',
     priceCents: 50000,
     durationMonths: null,
+    includedSeats: {
+      managers: 2,
+      annotators: 10,
+    },
   },
 };
 

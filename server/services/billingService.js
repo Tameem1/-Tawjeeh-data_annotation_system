@@ -139,6 +139,12 @@ function parseEmailLog(row) {
   };
 }
 
+function isBillableAdminUser(user) {
+  if (!user) return false;
+  const roles = Array.isArray(user.roles) ? user.roles : JSON.parse(user.roles || '[]');
+  return roles.includes('admin') && !roles.includes('super_admin');
+}
+
 export function getSettings() {
   const db = getDatabase();
   const rows = db.prepare('SELECT key, value FROM app_settings WHERE key IN (?, ?, ?)').all(...SETTINGS_KEYS);
@@ -283,10 +289,20 @@ export function getSubscriptionSummary(userId) {
 
 export function listBillingUsers() {
   const db = getDatabase();
-  const users = db.prepare('SELECT id FROM users ORDER BY created_at DESC').all();
+  const users = db.prepare('SELECT id, roles FROM users ORDER BY created_at DESC').all();
   return users
+    .filter((row) => isBillableAdminUser(row))
     .map((row) => getSubscriptionSummary(row.id))
     .filter(Boolean);
+}
+
+export function getSubscriptionOwnerUserId(user) {
+  if (!user) return null;
+  if (canManageBilling(user)) return null;
+  if (Array.isArray(user.roles) && user.roles.includes('admin') && !user.roles.includes('super_admin')) {
+    return user.id;
+  }
+  return user.admin_id || null;
 }
 
 export function getUserAccessState(user) {
@@ -308,7 +324,17 @@ export function getUserAccessState(user) {
     };
   }
 
-  const summary = getSubscriptionSummary(user.id);
+  const subscriptionOwnerUserId = getSubscriptionOwnerUserId(user);
+  if (!subscriptionOwnerUserId) {
+    return {
+      hasActiveAccess: false,
+      accessStatus: 'inactive',
+      reason: 'No billing owner is assigned to this account.',
+      subscriptionSummary: null,
+    };
+  }
+
+  const summary = getSubscriptionSummary(subscriptionOwnerUserId);
   if (!summary?.subscription) {
     return {
       hasActiveAccess: false,
@@ -328,8 +354,9 @@ export function getUserAccessState(user) {
 
 export function upsertSubscription(userId, input, actorId) {
   const db = getDatabase();
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+  const user = db.prepare('SELECT id, roles FROM users WHERE id = ?').get(userId);
   if (!user) throw new Error('User not found');
+  if (!isBillableAdminUser(user)) throw new Error('Subscriptions can only be managed for admin accounts');
 
   const planType = ensurePlanType(input.planType);
   const status = ensureStatus(input.status);
@@ -389,8 +416,9 @@ export function upsertSubscription(userId, input, actorId) {
 
 export function recordPayment(userId, input, actorId) {
   const db = getDatabase();
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+  const user = db.prepare('SELECT id, roles FROM users WHERE id = ?').get(userId);
   if (!user) throw new Error('User not found');
+  if (!isBillableAdminUser(user)) throw new Error('Payments can only be recorded for admin accounts');
 
   const amountCents = Number(input.amountCents);
   if (!Number.isFinite(amountCents) || amountCents <= 0) {
