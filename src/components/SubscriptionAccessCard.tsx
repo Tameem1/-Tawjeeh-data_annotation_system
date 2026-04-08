@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarDays, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/services/apiClient";
 
 type SubscriptionAccessCardProps = {
@@ -11,12 +12,18 @@ type SubscriptionAccessCardProps = {
 
 export function SubscriptionAccessCard({ reason, onBackToHome }: SubscriptionAccessCardProps) {
   const [calendlyUrl, setCalendlyUrl] = useState("");
+  const { logout } = useAuth();
 
   useEffect(() => {
     apiClient.marketing.getSettings()
       .then((result) => setCalendlyUrl(result.calendlyUrl || ""))
       .catch(() => setCalendlyUrl(""));
   }, []);
+
+  const handleBackToHome = () => {
+    logout();
+    onBackToHome?.();
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted px-4 py-10">
@@ -39,7 +46,7 @@ export function SubscriptionAccessCard({ reason, onBackToHome }: SubscriptionAcc
               </a>
             </Button>
           ) : null}
-          <Button variant="outline" onClick={onBackToHome}>Back to Landing Page</Button>
+          <Button variant="outline" onClick={handleBackToHome}>Back to Landing Page</Button>
         </CardContent>
       </Card>
     </div>
