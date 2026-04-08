@@ -11,7 +11,11 @@ export async function sendTransactionalEmail({
   }
 
   if (!fromEmail) {
-    return { ok: false, error: 'resend_from_email is not configured', messageId: null };
+    return {
+      ok: false,
+      error: 'Sender email is not configured. Set resend_from_email or NOTIFICATIONS_FROM_EMAIL.',
+      messageId: null,
+    };
   }
 
   try {

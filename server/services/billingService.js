@@ -22,6 +22,16 @@ function nowTs() {
   return Date.now();
 }
 
+function getFirstConfiguredEnv(...keys) {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
 function numberOrNull(value) {
   if (value === null || value === undefined || value === '') return null;
   const numeric = Number(value);
@@ -135,6 +145,12 @@ export function getSettings() {
   const map = Object.fromEntries(SETTINGS_KEYS.map((key) => [key, '']));
   for (const row of rows) {
     map[row.key] = row.value || '';
+  }
+  if (!map.resend_from_email) {
+    map.resend_from_email = getFirstConfiguredEnv('RESEND_FROM_EMAIL', 'NOTIFICATIONS_FROM_EMAIL');
+  }
+  if (!map.billing_reply_to_email) {
+    map.billing_reply_to_email = getFirstConfiguredEnv('BILLING_REPLY_TO_EMAIL', 'NOTIFICATIONS_REPLY_TO_EMAIL');
   }
   return map;
 }
