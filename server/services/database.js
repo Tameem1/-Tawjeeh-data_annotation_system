@@ -61,6 +61,17 @@ export function getDatabase() {
  * Create database schema
  */
 function createSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS organizations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      owner_admin_user_id TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (owner_admin_user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   // Users table
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -69,10 +80,12 @@ function createSchema() {
       password TEXT NOT NULL,
       roles TEXT NOT NULL DEFAULT '["annotator"]',
       admin_id TEXT,
+      organization_id TEXT,
       must_change_password INTEGER DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
-      FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL
+      FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
     )
   `);
 
@@ -83,6 +96,7 @@ function createSchema() {
       name TEXT NOT NULL,
       description TEXT,
       admin_id TEXT NOT NULL,
+      organization_id TEXT NOT NULL,
       manager_id TEXT,
       xml_config TEXT,
       upload_prompt TEXT,
@@ -90,6 +104,7 @@ function createSchema() {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
       FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
@@ -202,13 +217,15 @@ function createSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS provider_connections (
       id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
       provider_id TEXT NOT NULL,
       name TEXT NOT NULL,
       api_key TEXT,
       base_url TEXT,
       is_active INTEGER DEFAULT 1,
       created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
     )
   `);
 
@@ -216,6 +233,7 @@ function createSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS model_profiles (
       id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
       connection_id TEXT NOT NULL,
       model_id TEXT NOT NULL,
       display_name TEXT NOT NULL,
@@ -227,6 +245,7 @@ function createSchema() {
       is_active INTEGER DEFAULT 1,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
       FOREIGN KEY (connection_id) REFERENCES provider_connections(id) ON DELETE CASCADE
     )
   `);
@@ -235,9 +254,11 @@ function createSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS project_model_policies (
       project_id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
       allowed_profile_ids TEXT DEFAULT '[]',
       default_profile_ids TEXT DEFAULT '[]',
       updated_at INTEGER NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     )
   `);
@@ -249,6 +270,7 @@ function createSchema() {
       token TEXT UNIQUE NOT NULL,
       created_by TEXT NOT NULL,
       admin_id TEXT,
+      organization_id TEXT,
       default_roles TEXT DEFAULT '["annotator"]',
       max_uses INTEGER DEFAULT 0,
       current_uses INTEGER DEFAULT 0,
@@ -256,6 +278,7 @@ function createSchema() {
       is_active INTEGER DEFAULT 1,
       created_at INTEGER NOT NULL,
       FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
@@ -265,12 +288,14 @@ function createSchema() {
     CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
+      organization_id TEXT,
       type TEXT NOT NULL,
       title TEXT NOT NULL,
       body TEXT NOT NULL,
       data TEXT DEFAULT '{}',
       is_read INTEGER DEFAULT 0,
       created_at INTEGER NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
@@ -435,7 +460,9 @@ function createSchema() {
       xml_config TEXT NOT NULL,
       is_global INTEGER DEFAULT 0,
       created_by TEXT,
+      organization_id TEXT,
       created_at INTEGER NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     )`,
     `CREATE INDEX IF NOT EXISTS idx_task_templates_global ON task_templates(is_global)`,
@@ -446,6 +473,14 @@ function createSchema() {
     `ALTER TABLE users ADD COLUMN admin_id TEXT`,
     `ALTER TABLE projects ADD COLUMN admin_id TEXT`,
     `ALTER TABLE invite_tokens ADD COLUMN admin_id TEXT`,
+    `ALTER TABLE users ADD COLUMN organization_id TEXT`,
+    `ALTER TABLE projects ADD COLUMN organization_id TEXT`,
+    `ALTER TABLE invite_tokens ADD COLUMN organization_id TEXT`,
+    `ALTER TABLE provider_connections ADD COLUMN organization_id TEXT`,
+    `ALTER TABLE model_profiles ADD COLUMN organization_id TEXT`,
+    `ALTER TABLE project_model_policies ADD COLUMN organization_id TEXT`,
+    `ALTER TABLE task_templates ADD COLUMN organization_id TEXT`,
+    `ALTER TABLE notifications ADD COLUMN organization_id TEXT`,
   ];
   for (const sql of migrations) {
     try { db.exec(sql); } catch (_) { /* already exists */ }
@@ -460,9 +495,18 @@ function createSchema() {
     CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id);
     CREATE INDEX IF NOT EXISTS idx_project_annotators_user ON project_annotators(user_id);
+    CREATE INDEX IF NOT EXISTS idx_organizations_owner_admin ON organizations(owner_admin_user_id);
     CREATE INDEX IF NOT EXISTS idx_users_admin_id ON users(admin_id);
+    CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
     CREATE INDEX IF NOT EXISTS idx_projects_admin_id ON projects(admin_id);
+    CREATE INDEX IF NOT EXISTS idx_projects_organization_id ON projects(organization_id);
     CREATE INDEX IF NOT EXISTS idx_invite_tokens_admin_id ON invite_tokens(admin_id);
+    CREATE INDEX IF NOT EXISTS idx_invite_tokens_organization_id ON invite_tokens(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_provider_connections_organization_id ON provider_connections(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_model_profiles_organization_id ON model_profiles(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_project_model_policies_organization_id ON project_model_policies(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_task_templates_organization_id ON task_templates(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_organization_id ON notifications(organization_id);
     CREATE INDEX IF NOT EXISTS idx_invite_tokens_token ON invite_tokens(token);
     CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at);
     CREATE INDEX IF NOT EXISTS idx_import_jobs_status_created ON import_jobs(status, created_at);
@@ -503,7 +547,7 @@ function createSchema() {
   const now = Date.now();
 
   const adminUsers = db.prepare(`
-    SELECT id, roles
+    SELECT id, username, roles, organization_id
     FROM users
     ORDER BY created_at ASC
   `).all();
@@ -515,17 +559,36 @@ function createSchema() {
       return false;
     }
   });
-  const fallbackAdminId = nonSuperAdmins[0]?.id || seedAdmin?.id || null;
+  const organizationByAdminId = new Map();
+  const selectOrganizationByOwner = db.prepare('SELECT id FROM organizations WHERE owner_admin_user_id = ?');
+  const insertOrganization = db.prepare(`
+    INSERT INTO organizations (id, name, owner_admin_user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
 
-  if (fallbackAdminId) {
-    db.prepare(`
-      UPDATE users
-      SET admin_id = id
-      WHERE admin_id IS NULL
-        AND roles LIKE '%"admin"%'
-        AND roles NOT LIKE '%"super_admin"%'
-    `).run();
+  for (const admin of nonSuperAdmins) {
+    let organizationId = admin.organization_id || selectOrganizationByOwner.get(admin.id)?.id || null;
+    if (!organizationId) {
+      organizationId = crypto.randomUUID();
+      insertOrganization.run(
+        organizationId,
+        `${admin.username}'s Organization`,
+        admin.id,
+        now,
+        now
+      );
+    }
+    organizationByAdminId.set(admin.id, organizationId);
+    db.prepare('UPDATE users SET admin_id = ?, organization_id = ?, updated_at = ? WHERE id = ?')
+      .run(admin.id, organizationId, now, admin.id);
+  }
 
+  const fallbackOrganizationId = nonSuperAdmins.length > 0
+    ? organizationByAdminId.get(nonSuperAdmins[0].id)
+    : null;
+  const fallbackAdminId = nonSuperAdmins[0]?.id || null;
+
+  if (fallbackOrganizationId && fallbackAdminId) {
     db.prepare(`
       UPDATE users
       SET admin_id = ?
@@ -534,18 +597,45 @@ function createSchema() {
     `).run(fallbackAdminId);
 
     db.prepare(`
+      UPDATE users
+      SET organization_id = COALESCE(
+        (SELECT organization_id FROM users AS admin_owner WHERE admin_owner.id = users.admin_id),
+        ?
+      )
+      WHERE organization_id IS NULL
+    `).run(fallbackOrganizationId);
+
+    db.prepare(`
       UPDATE projects
       SET admin_id = COALESCE(
+        admin_id,
         (SELECT CASE
-          WHEN manager_id IS NOT NULL THEN
-            (SELECT CASE
-              WHEN roles LIKE '%"admin"%' AND roles NOT LIKE '%"super_admin"%' THEN id
-              ELSE admin_id
-            END
-            FROM users
-            WHERE id = projects.manager_id)
-          ELSE NULL
-        END),
+          WHEN roles LIKE '%"admin"%' AND roles NOT LIKE '%"super_admin"%' THEN id
+          ELSE admin_id
+        END FROM users WHERE id = projects.manager_id),
+        ?
+      )
+      WHERE admin_id IS NULL
+    `).run(fallbackAdminId);
+
+    db.prepare(`
+      UPDATE projects
+      SET organization_id = COALESCE(
+        (SELECT organization_id FROM users WHERE id = projects.admin_id),
+        (SELECT organization_id FROM users WHERE id = projects.manager_id),
+        ?
+      )
+      WHERE organization_id IS NULL
+    `).run(fallbackOrganizationId);
+
+    db.prepare(`
+      UPDATE invite_tokens
+      SET admin_id = COALESCE(
+        admin_id,
+        (SELECT CASE
+          WHEN roles LIKE '%"admin"%' AND roles NOT LIKE '%"super_admin"%' THEN id
+          ELSE admin_id
+        END FROM users WHERE id = invite_tokens.created_by),
         ?
       )
       WHERE admin_id IS NULL
@@ -553,17 +643,55 @@ function createSchema() {
 
     db.prepare(`
       UPDATE invite_tokens
-      SET admin_id = COALESCE(
-        (SELECT CASE
-          WHEN roles LIKE '%"admin"%' AND roles NOT LIKE '%"super_admin"%' THEN id
-          ELSE admin_id
-        END
-        FROM users
-        WHERE id = invite_tokens.created_by),
+      SET organization_id = COALESCE(
+        (SELECT organization_id FROM users WHERE id = invite_tokens.created_by),
+        (SELECT organization_id FROM users WHERE id = invite_tokens.admin_id),
         ?
       )
-      WHERE admin_id IS NULL
-    `).run(fallbackAdminId);
+      WHERE organization_id IS NULL
+    `).run(fallbackOrganizationId);
+
+    db.prepare(`
+      UPDATE provider_connections
+      SET organization_id = ?
+      WHERE organization_id IS NULL
+    `).run(fallbackOrganizationId);
+
+    db.prepare(`
+      UPDATE model_profiles
+      SET organization_id = COALESCE(
+        (SELECT organization_id FROM provider_connections WHERE id = model_profiles.connection_id),
+        ?
+      )
+      WHERE organization_id IS NULL
+    `).run(fallbackOrganizationId);
+
+    db.prepare(`
+      UPDATE task_templates
+      SET organization_id = COALESCE(
+        (SELECT organization_id FROM users WHERE id = task_templates.created_by),
+        ?
+      )
+      WHERE organization_id IS NULL AND is_global = 0
+    `).run(fallbackOrganizationId);
+
+    db.prepare(`
+      UPDATE notifications
+      SET organization_id = COALESCE(
+        (SELECT organization_id FROM users WHERE id = notifications.user_id),
+        ?
+      )
+      WHERE organization_id IS NULL
+    `).run(fallbackOrganizationId);
+
+    db.prepare(`
+      UPDATE project_model_policies
+      SET organization_id = COALESCE(
+        (SELECT organization_id FROM projects WHERE id = project_model_policies.project_id),
+        ?
+      )
+      WHERE organization_id IS NULL
+    `).run(fallbackOrganizationId);
   }
 
   const upsertSetting = db.prepare(`

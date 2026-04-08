@@ -139,8 +139,9 @@ const Dashboard = () => {
         }
     };
 
-    const isAdmin = currentUser?.roles?.includes("admin");
-    const isManager = currentUser?.roles?.includes("manager") || isAdmin;
+    const isTenantAdmin = currentUser?.roles?.includes("admin") && !!currentUser?.organizationId;
+    const isAdmin = isTenantAdmin;
+    const isManager = (currentUser?.roles?.includes("manager") && !!currentUser?.organizationId) || isAdmin;
     const isSuperAdmin = currentUser?.roles?.includes("super_admin");
     const assignableRoleOptions = [
         { id: "manager", label: t("dashboard.roles.manager"), icon: Briefcase },
@@ -169,15 +170,15 @@ const Dashboard = () => {
 
     const visibleProjects = useMemo(() => {
         if (!currentUser) return [];
-        if (currentUser.roles.includes("admin")) return projects;
-        if (currentUser.roles.includes("manager")) {
+        if (isAdmin) return projects;
+        if (currentUser.roles.includes("manager") && currentUser.organizationId) {
             return projects.filter(p => p.managerId === currentUser.id);
         }
-        if (currentUser.roles.includes("annotator")) {
+        if (currentUser.roles.includes("annotator") && currentUser.organizationId) {
             return projects.filter(p => (p.annotatorIds || []).includes(currentUser.id));
         }
         return [];
-    }, [projects, currentUser]);
+    }, [projects, currentUser, isAdmin]);
 
     const managerUsers = users.filter(u => u.roles.includes("manager"));
     const annotatorUsers = users.filter(u => u.roles.includes("annotator"));
@@ -190,13 +191,13 @@ const Dashboard = () => {
 
     const canManageAccess = (project: Project) => {
         if (!currentUser) return false;
-        if (currentUser.roles.includes("admin")) return true;
-        return currentUser.roles.includes("manager") && project.managerId === currentUser.id;
+        if (isAdmin) return true;
+        return currentUser.roles.includes("manager") && !!currentUser.organizationId && project.managerId === currentUser.id;
     };
 
     const handleSaveAccess = async () => {
         if (!accessProject || !currentUser) return;
-        const isProjectManager = currentUser.roles.includes("manager") && accessProject.managerId === currentUser.id;
+        const isProjectManager = currentUser.roles.includes("manager") && !!currentUser.organizationId && accessProject.managerId === currentUser.id;
         const managerIdToSave = isAdmin ? selectedManagerId : accessProject.managerId ?? null;
         const annotatorsToSave = isAdmin || isProjectManager ? selectedAnnotators : accessProject.annotatorIds ?? [];
         try {

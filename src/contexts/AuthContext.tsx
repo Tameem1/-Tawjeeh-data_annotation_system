@@ -9,6 +9,7 @@ export type User = {
   id: string;
   username: string;
   roles: Role[];
+  organizationId?: string | null;
   mustChangePassword?: boolean;
   hasActiveAccess?: boolean;
   accessStatus?: string;

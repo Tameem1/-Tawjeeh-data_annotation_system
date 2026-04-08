@@ -13,10 +13,11 @@ import { getDatabase } from './database.js';
 export function createNotification({ userId, type, title, body, data = {} }) {
   try {
     const db = getDatabase();
+    const organizationId = db.prepare('SELECT organization_id FROM users WHERE id = ?').get(userId)?.organization_id ?? null;
     db.prepare(`
-      INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
-    `).run(crypto.randomUUID(), userId, type, title, body, JSON.stringify(data), Date.now());
+      INSERT INTO notifications (id, user_id, organization_id, type, title, body, data, is_read, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+    `).run(crypto.randomUUID(), userId, organizationId, type, title, body, JSON.stringify(data), Date.now());
   } catch (err) {
     // Notifications are best-effort — never crash the caller
     console.error('Failed to create notification:', err);

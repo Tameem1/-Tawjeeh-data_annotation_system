@@ -64,7 +64,7 @@ export default function ProjectSettings() {
     const [showTemplatePicker, setShowTemplatePicker] = useState(false);
     const [builderMode, setBuilderMode] = useState<'visual' | 'xml'>('visual');
 
-    const isAdmin = currentUser?.roles?.includes("admin");
+    const isAdmin = currentUser?.roles?.includes("admin") && !!currentUser?.organizationId;
     const isSuperAdmin = currentUser?.roles?.includes("super_admin");
 
     // ── Load data ────────────────────────────────────────────────────────────

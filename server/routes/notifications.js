@@ -1,4 +1,5 @@
 import { getDatabase } from '../services/database.js';
+import { assertTenantAccess } from '../services/tenantScope.js';
 
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 100;
@@ -21,6 +22,8 @@ export function registerNotificationRoutes(app) {
   app.get('/api/notifications', (req, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const tenantAccess = assertTenantAccess(user);
+    if (!tenantAccess.ok) return res.status(tenantAccess.status).json({ error: tenantAccess.error });
 
     const parsedLimit = parseInt(req.query.limit, 10);
     const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
@@ -60,6 +63,8 @@ export function registerNotificationRoutes(app) {
   app.post('/api/notifications/read', (req, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const tenantAccess = assertTenantAccess(user);
+    if (!tenantAccess.ok) return res.status(tenantAccess.status).json({ error: tenantAccess.error });
 
     try {
       if (req.body?.all === true) {
@@ -91,6 +96,8 @@ export function registerNotificationRoutes(app) {
   app.delete('/api/notifications/:id', (req, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const tenantAccess = assertTenantAccess(user);
+    if (!tenantAccess.ok) return res.status(tenantAccess.status).json({ error: tenantAccess.error });
 
     try {
       const result = db.prepare(

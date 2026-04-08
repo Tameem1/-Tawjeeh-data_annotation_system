@@ -24,8 +24,8 @@ const uuid = () => crypto.randomUUID();
 const now = () => Date.now();
 
 const insertProject = db.prepare(`
-  INSERT INTO projects (id, name, description, admin_id, manager_id, xml_config, guidelines, is_demo, created_at, updated_at)
-  VALUES (@id, @name, @description, @adminId, @managerId, @xmlConfig, @guidelines, 0, @ts, @ts)
+  INSERT INTO projects (id, name, description, admin_id, organization_id, manager_id, xml_config, guidelines, is_demo, created_at, updated_at)
+  VALUES (@id, @name, @description, @adminId, @organizationId, @managerId, @xmlConfig, @guidelines, 0, @ts, @ts)
 `);
 
 const insertPoint = db.prepare(`
@@ -38,9 +38,10 @@ const insertMember = db.prepare(`INSERT OR IGNORE INTO project_annotators (proje
 const checkExists  = db.prepare(`SELECT id FROM projects WHERE name = ?`);
 
 // ── fetch admin ────────────────────────────────────────────────────────────
-const admin = db.prepare(`SELECT id FROM users WHERE JSON_EXTRACT(roles,'$[0]') = 'admin' OR roles LIKE '%admin%' LIMIT 1`).get();
+const admin = db.prepare(`SELECT id, organization_id FROM users WHERE JSON_EXTRACT(roles,'$[0]') = 'admin' OR roles LIKE '%admin%' LIMIT 1`).get();
 if (!admin) { console.error('No admin user found. Start the server at least once first.'); process.exit(1); }
 const adminId = admin.id;
+const organizationId = admin.organization_id;
 
 // ── project definitions ────────────────────────────────────────────────────
 
@@ -333,6 +334,7 @@ for (const proj of PROJECTS) {
     name: proj.name,
     description: proj.description,
     adminId,
+    organizationId,
     managerId: adminId,
     xmlConfig: proj.xmlConfig,
     guidelines: proj.guidelines,

@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { getUserAccessState } from '../services/billingService.js';
 import { assertRoles, isSuperAdmin, normalizeRoles } from '../services/permissions.js';
-import { canManageAdminRole, getTenantAdminId, isUserInTenant } from '../services/tenantScope.js';
+import { assertTenantAccess, canManageAdminRole, getTenantOrganizationId, isTenantUser, isUserInTenant } from '../services/tenantScope.js';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -44,20 +44,21 @@ const DEMO_DATA_POINTS = [
  * Creates a demo practice project with sample data for a new user.
  * The project is a sentiment analysis task so the user can explore the workspace.
  */
-function createDemoProject(db, userId, username, roles, adminId) {
+function createDemoProject(db, userId, username, roles, adminId, organizationId) {
     try {
         const projectId = crypto.randomUUID();
         const now = Date.now();
         const isManagerOrAdmin = roles.includes('admin') || roles.includes('manager');
 
         db.prepare(`
-            INSERT INTO projects (id, name, description, admin_id, manager_id, xml_config, guidelines, is_demo, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+            INSERT INTO projects (id, name, description, admin_id, organization_id, manager_id, xml_config, guidelines, is_demo, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
         `).run(
             projectId,
             'Practice Project — Sentiment Analysis',
             'A sample project to help you get started. Practice accepting, rejecting, and editing AI-suggested sentiment labels on product reviews.',
             adminId,
+            organizationId,
             isManagerOrAdmin ? userId : null,
             DEMO_XML_CONFIG,
             'Label each product review with the correct sentiment:\n- **Positive** — the customer is satisfied or happy\n- **Negative** — the customer is dissatisfied or unhappy\n- **Neutral** — the customer is neither positive nor negative\n\nYou can accept the AI suggestion, reject it, or edit it to the correct label.',
@@ -92,41 +93,57 @@ function createDemoProject(db, userId, username, roles, adminId) {
  */
 export function registerUserRoutes(app) {
     const db = getDatabase();
+    const createOrganizationForAdmin = (adminUserId, username) => {
+        const existing = db.prepare('SELECT id FROM organizations WHERE owner_admin_user_id = ?').get(adminUserId);
+        if (existing?.id) {
+            db.prepare('UPDATE users SET organization_id = ?, updated_at = ? WHERE id = ?')
+                .run(existing.id, Date.now(), adminUserId);
+            return existing.id;
+        }
+
+        const organizationId = crypto.randomUUID();
+        const now = Date.now();
+        db.prepare(`
+            INSERT INTO organizations (id, name, owner_admin_user_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+        `).run(organizationId, `${username}'s Organization`, adminUserId, now, now);
+        db.prepare('UPDATE users SET organization_id = ?, updated_at = ? WHERE id = ?')
+            .run(organizationId, now, adminUserId);
+        return organizationId;
+    };
+
     const mapUser = (user) => ({
         id: user.id,
         username: user.username,
         roles: normalizeRoles(JSON.parse(user.roles)),
         adminId: user.admin_id ?? null,
+        organizationId: user.organization_id ?? null,
         mustChangePassword: !!user.must_change_password,
         createdAt: user.created_at,
         updatedAt: user.updated_at
     });
 
     const getScopedUsers = (currentUser) => {
-        const tenantAdminId = getTenantAdminId(currentUser);
-        if (tenantAdminId === null) {
-            return db.prepare(`
-                SELECT id, username, roles, admin_id, must_change_password, created_at, updated_at
-                FROM users
-                ORDER BY created_at DESC
-            `).all();
-        }
-
+        const organizationId = getTenantOrganizationId(currentUser);
         return db.prepare(`
-            SELECT id, username, roles, admin_id, must_change_password, created_at, updated_at
+            SELECT id, username, roles, admin_id, organization_id, must_change_password, created_at, updated_at
             FROM users
-            WHERE id = ? OR admin_id = ?
+            WHERE organization_id = ?
             ORDER BY created_at DESC
-        `).all(tenantAdminId, tenantAdminId);
+        `).all(organizationId);
     };
 
     // Get all users (admin or manager only)
     app.get('/api/users', (req, res) => {
         try {
             const user = req.user;
+            const tenantAccess = assertTenantAccess(user);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
 
             // Allow admin and manager to see user list
-            if (!user || (!user.roles?.includes('admin') && !user.roles?.includes('manager'))) {
+            if (!user.roles?.includes('admin') && !user.roles?.includes('manager')) {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
@@ -142,20 +159,23 @@ export function registerUserRoutes(app) {
     app.get('/api/users/:id', (req, res) => {
         try {
             const currentUser = req.user;
+            const tenantAccess = assertTenantAccess(currentUser);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
             const { id } = req.params;
-            const user = db.prepare('SELECT id, username, roles, admin_id, must_change_password, created_at, updated_at FROM users WHERE id = ?').get(id);
+            const user = db.prepare('SELECT id, username, roles, admin_id, organization_id, must_change_password, created_at, updated_at FROM users WHERE id = ?').get(id);
 
             if (!user) {
                 return res.status(404).json({ error: 'User not found' });
             }
 
             const normalizedRoles = normalizeRoles(JSON.parse(user.roles));
-            const tenantAdminId = getTenantAdminId(currentUser);
             const canRead = currentUser?.id === id
                 || currentUser?.roles?.includes('admin')
                 || currentUser?.roles?.includes('manager');
 
-            if (!canRead || !isUserInTenant({ ...user, roles: normalizedRoles }, tenantAdminId)) {
+            if (!canRead || !isUserInTenant({ ...user, roles: normalizedRoles }, tenantAccess.organizationId)) {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
@@ -188,11 +208,21 @@ export function registerUserRoutes(app) {
             if ((sanitized.includes('admin') || sanitized.includes('super_admin')) && !canManageAdminRole(currentUser)) {
                 return res.status(403).json({ error: 'Only a super admin can create admin accounts' });
             }
+            if (isSuperAdmin(currentUser) && !sanitized.includes('admin')) {
+                return res.status(403).json({ error: 'Super admin can only create organization admin accounts' });
+            }
             if (roles?.includes?.('super_admin') && !isSuperAdmin(currentUser)) {
                 return res.status(403).json({ error: 'Only a super admin can assign the super_admin role' });
             }
             if (sanitized.length === 0) {
                 return res.status(400).json({ error: 'At least one valid role is required' });
+            }
+
+            if (!canManageAdminRole(currentUser)) {
+                const tenantAccess = assertTenantAccess(currentUser);
+                if (!tenantAccess.ok) {
+                    return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+                }
             }
 
             // Check if username already exists
@@ -206,20 +236,28 @@ export function registerUserRoutes(app) {
             const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
             const adminId = sanitized.includes('admin') && !sanitized.includes('super_admin')
                 ? id
-                : (getTenantAdminId(currentUser) || currentUser.id);
+                : (currentUser.admin_id || currentUser.id);
+            const organizationId = sanitized.includes('admin') && !sanitized.includes('super_admin')
+                ? null
+                : getTenantOrganizationId(currentUser);
 
             db.prepare(`
-        INSERT INTO users (id, username, password, roles, admin_id, must_change_password, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, username, passwordHash, JSON.stringify(sanitized), adminId, mustChangePassword ? 1 : 0, now, now);
+        INSERT INTO users (id, username, password, roles, admin_id, organization_id, must_change_password, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, username, passwordHash, JSON.stringify(sanitized), adminId, organizationId, mustChangePassword ? 1 : 0, now, now);
 
-            createDemoProject(db, id, username, sanitized, adminId);
+            const resolvedOrganizationId = sanitized.includes('admin') && !sanitized.includes('super_admin')
+                ? createOrganizationForAdmin(id, username)
+                : organizationId;
+
+            createDemoProject(db, id, username, sanitized, adminId, resolvedOrganizationId);
 
             res.status(201).json({
                 id,
                 username,
                 roles: sanitized,
                 adminId,
+                organizationId: resolvedOrganizationId,
                 mustChangePassword,
                 createdAt: now,
                 updatedAt: now
@@ -238,7 +276,7 @@ export function registerUserRoutes(app) {
             const { password, roles, mustChangePassword } = req.body;
 
             // Only admin can change roles, users can change their own password
-            const isAdmin = currentUser?.roles?.includes('admin');
+            const isAdmin = currentUser?.roles?.includes('admin') && isTenantUser(currentUser);
             const isSelf = currentUser?.id === id;
 
             if (!isAdmin && !isSelf) {
@@ -256,8 +294,8 @@ export function registerUserRoutes(app) {
             }
 
             const existingRoles = normalizeRoles(JSON.parse(existing.roles));
-            const tenantAdminId = getTenantAdminId(currentUser);
-            if (!isSelf && (!isUserInTenant({ ...existing, roles: existingRoles }, tenantAdminId) || (existingRoles.includes('admin') && !canManageAdminRole(currentUser)))) {
+            const tenantOrganizationId = getTenantOrganizationId(currentUser);
+            if (!isSelf && (!isUserInTenant({ ...existing, roles: existingRoles }, tenantOrganizationId) || (existingRoles.includes('admin') && !canManageAdminRole(currentUser)))) {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
@@ -287,9 +325,14 @@ export function registerUserRoutes(app) {
                 if (sanitized.includes('admin') && !sanitized.includes('super_admin')) {
                     updates.push('admin_id = ?');
                     values.push(id);
+                    const organizationId = createOrganizationForAdmin(id, existing.username);
+                    updates.push('organization_id = ?');
+                    values.push(organizationId);
                 } else if (!sanitized.includes('admin')) {
                     updates.push('admin_id = ?');
-                    values.push(existing.admin_id || tenantAdminId || currentUser.id);
+                    values.push(existing.admin_id || currentUser.admin_id || currentUser.id);
+                    updates.push('organization_id = ?');
+                    values.push(existing.organization_id || tenantOrganizationId || null);
                 }
             }
             if (mustChangePassword !== undefined) {
@@ -333,8 +376,8 @@ export function registerUserRoutes(app) {
             }
 
             const existingRoles = normalizeRoles(JSON.parse(existing.roles));
-            const tenantAdminId = getTenantAdminId(currentUser);
-            if (!isUserInTenant({ ...existing, roles: existingRoles }, tenantAdminId) || (existingRoles.includes('admin') && !canManageAdminRole(currentUser))) {
+            const tenantOrganizationId = getTenantOrganizationId(currentUser);
+            if (!isUserInTenant({ ...existing, roles: existingRoles }, tenantOrganizationId) || (existingRoles.includes('admin') && !canManageAdminRole(currentUser))) {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
@@ -396,6 +439,7 @@ export function registerUserRoutes(app) {
                 username: user.username,
                 roles,
                 adminId: user.admin_id ?? null,
+                organizationId: user.organization_id ?? null,
                 mustChangePassword: !!user.must_change_password,
                 hasActiveAccess: accessState.hasActiveAccess,
                 accessStatus: accessState.accessStatus,
@@ -414,7 +458,7 @@ export function registerUserRoutes(app) {
             return res.status(401).json({ error: 'Not authenticated' });
         }
 
-        const user = db.prepare('SELECT id, username, roles, admin_id, must_change_password FROM users WHERE id = ?').get(req.user.id);
+        const user = db.prepare('SELECT id, username, roles, admin_id, organization_id, must_change_password FROM users WHERE id = ?').get(req.user.id);
 
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
@@ -432,6 +476,7 @@ export function registerUserRoutes(app) {
             username: user.username,
             roles: normalizedRoles,
             adminId: user.admin_id ?? null,
+            organizationId: user.organization_id ?? null,
             mustChangePassword: !!user.must_change_password,
             hasActiveAccess: accessState.hasActiveAccess,
             accessStatus: accessState.accessStatus,
@@ -446,7 +491,8 @@ export function registerUserRoutes(app) {
     app.post('/api/invite', (req, res) => {
         try {
             const currentUser = req.user;
-            if (!currentUser?.roles?.includes('admin')) {
+            const tenantAccess = assertTenantAccess(currentUser);
+            if (!tenantAccess.ok || !currentUser?.roles?.includes('admin')) {
                 return res.status(403).json({ error: 'Admin access required' });
             }
 
@@ -457,19 +503,17 @@ export function registerUserRoutes(app) {
             } = req.body;
 
             const sanitized = sanitizeRoles(roles);
-            if ((sanitized.includes('admin') || sanitized.includes('super_admin')) && !canManageAdminRole(currentUser)) {
-                return res.status(403).json({ error: 'Only a super admin can create admin invites' });
-            }
             const id = crypto.randomUUID();
             const token = crypto.randomUUID().replace(/-/g, '');  // Clean token without dashes
             const now = Date.now();
             const expiresAt = expiresInDays > 0 ? now + (expiresInDays * 24 * 60 * 60 * 1000) : null;
-            const adminId = getTenantAdminId(currentUser) || currentUser.id;
+            const adminId = currentUser.admin_id || currentUser.id;
+            const organizationId = tenantAccess.organizationId;
 
             db.prepare(`
-                INSERT INTO invite_tokens (id, token, created_by, admin_id, default_roles, max_uses, current_uses, expires_at, is_active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 0, ?, 1, ?)
-            `).run(id, token, currentUser.id, adminId, JSON.stringify(sanitized), maxUses, expiresAt, now);
+                INSERT INTO invite_tokens (id, token, created_by, admin_id, organization_id, default_roles, max_uses, current_uses, expires_at, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 1, ?)
+            `).run(id, token, currentUser.id, adminId, organizationId, JSON.stringify(sanitized), maxUses, expiresAt, now);
 
             res.status(201).json({
                 id,
@@ -478,6 +522,7 @@ export function registerUserRoutes(app) {
                 roles: sanitized,
                 maxUses,
                 adminId,
+                organizationId,
                 expiresAt,
                 createdAt: now
             });
@@ -491,23 +536,18 @@ export function registerUserRoutes(app) {
     app.get('/api/invite', (req, res) => {
         try {
             const currentUser = req.user;
-            if (!currentUser?.roles?.includes('admin')) {
+            const tenantAccess = assertTenantAccess(currentUser);
+            if (!tenantAccess.ok || !currentUser?.roles?.includes('admin')) {
                 return res.status(403).json({ error: 'Admin access required' });
             }
 
-            const tenantAdminId = getTenantAdminId(currentUser);
-            const tokens = tenantAdminId === null ? db.prepare(`
+            const tokens = db.prepare(`
                 SELECT t.*, u.username as created_by_name
                 FROM invite_tokens t
                 LEFT JOIN users u ON t.created_by = u.id
+                WHERE t.organization_id = ?
                 ORDER BY t.created_at DESC
-            `).all() : db.prepare(`
-                SELECT t.*, u.username as created_by_name
-                FROM invite_tokens t
-                LEFT JOIN users u ON t.created_by = u.id
-                WHERE t.admin_id = ?
-                ORDER BY t.created_at DESC
-            `).all(tenantAdminId);
+            `).all(tenantAccess.organizationId);
 
             res.json(tokens.map(t => ({
                 id: t.id,
@@ -517,6 +557,7 @@ export function registerUserRoutes(app) {
                 maxUses: t.max_uses,
                 currentUses: t.current_uses,
                 adminId: t.admin_id ?? null,
+                organizationId: t.organization_id ?? null,
                 expiresAt: t.expires_at,
                 isActive: !!t.is_active,
                 createdBy: t.created_by,
@@ -555,7 +596,8 @@ export function registerUserRoutes(app) {
             res.json({
                 valid: true,
                 roles: JSON.parse(invite.default_roles),
-                adminId: invite.admin_id ?? null
+                adminId: invite.admin_id ?? null,
+                organizationId: invite.organization_id ?? null
             });
         } catch (error) {
             console.error('Error validating invite token:', error);
@@ -607,16 +649,19 @@ export function registerUserRoutes(app) {
             const roles = normalizeRoles(JSON.parse(invite.default_roles));
             const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
             const adminId = invite.admin_id || invite.created_by;
+            const organizationId = invite.organization_id
+                || db.prepare('SELECT organization_id FROM users WHERE id = ?').get(adminId)?.organization_id
+                || null;
 
             db.prepare(`
-                INSERT INTO users (id, username, password, roles, admin_id, must_change_password, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 0, ?, ?)
-            `).run(userId, username, passwordHash, invite.default_roles, adminId, now, now);
+                INSERT INTO users (id, username, password, roles, admin_id, organization_id, must_change_password, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+            `).run(userId, username, passwordHash, invite.default_roles, adminId, organizationId, now, now);
 
             // Increment invite usage
             db.prepare('UPDATE invite_tokens SET current_uses = current_uses + 1 WHERE id = ?').run(invite.id);
 
-            createDemoProject(db, userId, username, roles, adminId);
+            createDemoProject(db, userId, username, roles, adminId, organizationId);
 
             const jwtToken = generateToken({ id: userId, username, roles });
 
@@ -632,6 +677,7 @@ export function registerUserRoutes(app) {
                 username,
                 roles,
                 adminId,
+                organizationId,
                 mustChangePassword: false,
                 hasActiveAccess: accessState.hasActiveAccess,
                 accessStatus: accessState.accessStatus,
@@ -648,18 +694,18 @@ export function registerUserRoutes(app) {
     app.patch('/api/invite/:id', (req, res) => {
         try {
             const currentUser = req.user;
-            if (!currentUser?.roles?.includes('admin')) {
+            const tenantAccess = assertTenantAccess(currentUser);
+            if (!tenantAccess.ok || !currentUser?.roles?.includes('admin')) {
                 return res.status(403).json({ error: 'Admin access required' });
             }
 
             const { id } = req.params;
             const { isActive } = req.body;
-            const tenantAdminId = getTenantAdminId(currentUser);
             const invite = db.prepare('SELECT * FROM invite_tokens WHERE id = ?').get(id);
             if (!invite) {
                 return res.status(404).json({ error: 'Invite token not found' });
             }
-            if (tenantAdminId !== null && invite.admin_id !== tenantAdminId) {
+            if (invite.organization_id !== tenantAccess.organizationId) {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
@@ -680,17 +726,17 @@ export function registerUserRoutes(app) {
     app.delete('/api/invite/:id', (req, res) => {
         try {
             const currentUser = req.user;
-            if (!currentUser?.roles?.includes('admin')) {
+            const tenantAccess = assertTenantAccess(currentUser);
+            if (!tenantAccess.ok || !currentUser?.roles?.includes('admin')) {
                 return res.status(403).json({ error: 'Admin access required' });
             }
 
             const { id } = req.params;
-            const tenantAdminId = getTenantAdminId(currentUser);
             const invite = db.prepare('SELECT * FROM invite_tokens WHERE id = ?').get(id);
             if (!invite) {
                 return res.status(404).json({ error: 'Invite token not found' });
             }
-            if (tenantAdminId !== null && invite.admin_id !== tenantAdminId) {
+            if (invite.organization_id !== tenantAccess.organizationId) {
                 return res.status(403).json({ error: 'Access denied' });
             }
             const result = db.prepare('DELETE FROM invite_tokens WHERE id = ?').run(id);

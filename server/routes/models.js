@@ -1,6 +1,7 @@
 import { getDatabase } from '../services/database.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import crypto from 'crypto';
+import { assertTenantAccess, getTenantOrganizationId } from '../services/tenantScope.js';
 
 function maskApiKey(key) {
     if (!key) return null;
@@ -23,7 +24,11 @@ export function registerModelRoutes(app) {
     // Provider Connections — admin only for write, requireAuth for read
     app.get('/api/connections', requireAuth, (req, res) => {
         try {
-            const connections = db.prepare('SELECT * FROM provider_connections ORDER BY created_at DESC').all();
+            const tenantAccess = assertTenantAccess(req.user);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
+            const connections = db.prepare('SELECT * FROM provider_connections WHERE organization_id = ? ORDER BY created_at DESC').all(tenantAccess.organizationId);
 
             res.json(connections.map(c => ({
                 id: c.id,
@@ -44,6 +49,13 @@ export function registerModelRoutes(app) {
 
     app.post('/api/connections', requireAuth, (req, res) => {
         try {
+            const tenantAccess = assertTenantAccess(req.user);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
+            if (!req.user.roles?.includes('admin') && !req.user.roles?.includes('manager')) {
+                return res.status(403).json({ error: 'Admin or manager access required' });
+            }
             const { id, providerId, name, apiKey, baseUrl, isActive = true } = req.body;
 
             if (!providerId || !name) {
@@ -53,24 +65,28 @@ export function registerModelRoutes(app) {
             const connectionId = id || crypto.randomUUID();
             const now = Date.now();
             const existing = id
-                ? db.prepare('SELECT api_key, created_at FROM provider_connections WHERE id = ?').get(id)
+                ? db.prepare('SELECT api_key, created_at, organization_id FROM provider_connections WHERE id = ?').get(id)
                 : null;
+            if (existing && existing.organization_id !== tenantAccess.organizationId) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
             const resolvedApiKey = apiKey === undefined
                 ? (existing?.api_key ?? null)
                 : (apiKey || null);
             const createdAt = existing?.created_at || now;
 
             db.prepare(`
-        INSERT INTO provider_connections (id, provider_id, name, api_key, base_url, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO provider_connections (id, organization_id, provider_id, name, api_key, base_url, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+          organization_id = excluded.organization_id,
           provider_id = excluded.provider_id,
           name = excluded.name,
           api_key = excluded.api_key,
           base_url = excluded.base_url,
           is_active = excluded.is_active,
           updated_at = excluded.updated_at
-      `).run(connectionId, providerId, name, resolvedApiKey, baseUrl || null, isActive ? 1 : 0, createdAt, now);
+      `).run(connectionId, tenantAccess.organizationId, providerId, name, resolvedApiKey, baseUrl || null, isActive ? 1 : 0, createdAt, now);
 
             res.status(201).json({ id: connectionId, createdAt, updatedAt: now });
         } catch (error) {
@@ -82,7 +98,14 @@ export function registerModelRoutes(app) {
     app.delete('/api/connections/:id', requireAuth, (req, res) => {
         try {
             const { id } = req.params;
-            db.prepare('DELETE FROM provider_connections WHERE id = ?').run(id);
+            const tenantAccess = assertTenantAccess(req.user);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
+            if (!req.user.roles?.includes('admin') && !req.user.roles?.includes('manager')) {
+                return res.status(403).json({ error: 'Admin or manager access required' });
+            }
+            db.prepare('DELETE FROM provider_connections WHERE id = ? AND organization_id = ?').run(id, tenantAccess.organizationId);
             res.json({ success: true });
         } catch (error) {
             console.error('Error deleting connection:', error);
@@ -93,7 +116,11 @@ export function registerModelRoutes(app) {
     // Model Profiles
     app.get('/api/profiles', requireAuth, (req, res) => {
         try {
-            const profiles = db.prepare('SELECT * FROM model_profiles ORDER BY created_at DESC').all();
+            const tenantAccess = assertTenantAccess(req.user);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
+            const profiles = db.prepare('SELECT * FROM model_profiles WHERE organization_id = ? ORDER BY created_at DESC').all(tenantAccess.organizationId);
 
             res.json(profiles.map(p => ({
                 id: p.id,
@@ -117,6 +144,13 @@ export function registerModelRoutes(app) {
 
     app.post('/api/profiles', requireAuth, (req, res) => {
         try {
+            const tenantAccess = assertTenantAccess(req.user);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
+            if (!req.user.roles?.includes('admin') && !req.user.roles?.includes('manager')) {
+                return res.status(403).json({ error: 'Admin or manager access required' });
+            }
             const {
                 id,
                 providerConnectionId,
@@ -136,13 +170,24 @@ export function registerModelRoutes(app) {
 
             const profileId = id || crypto.randomUUID();
             const now = Date.now();
+            const connection = db.prepare('SELECT id, organization_id FROM provider_connections WHERE id = ?').get(providerConnectionId);
+            if (!connection || connection.organization_id !== tenantAccess.organizationId) {
+                return res.status(400).json({ error: 'Connection not found in this organization' });
+            }
+            const existing = id
+                ? db.prepare('SELECT organization_id FROM model_profiles WHERE id = ?').get(id)
+                : null;
+            if (existing && existing.organization_id !== tenantAccess.organizationId) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
 
             db.prepare(`
         INSERT INTO model_profiles (
-          id, connection_id, model_id, display_name, default_prompt, temperature, max_tokens,
+          id, organization_id, connection_id, model_id, display_name, default_prompt, temperature, max_tokens,
           input_price_per_million, output_price_per_million, is_active, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+          organization_id = excluded.organization_id,
           connection_id = excluded.connection_id,
           model_id = excluded.model_id,
           display_name = excluded.display_name,
@@ -155,6 +200,7 @@ export function registerModelRoutes(app) {
           updated_at = excluded.updated_at
       `).run(
                 profileId,
+                tenantAccess.organizationId,
                 providerConnectionId,
                 modelId,
                 displayName,
@@ -178,7 +224,14 @@ export function registerModelRoutes(app) {
     app.delete('/api/profiles/:id', requireAuth, (req, res) => {
         try {
             const { id } = req.params;
-            db.prepare('DELETE FROM model_profiles WHERE id = ?').run(id);
+            const tenantAccess = assertTenantAccess(req.user);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
+            if (!req.user.roles?.includes('admin') && !req.user.roles?.includes('manager')) {
+                return res.status(403).json({ error: 'Admin or manager access required' });
+            }
+            db.prepare('DELETE FROM model_profiles WHERE id = ? AND organization_id = ?').run(id, tenantAccess.organizationId);
             res.json({ success: true });
         } catch (error) {
             console.error('Error deleting profile:', error);
@@ -189,7 +242,15 @@ export function registerModelRoutes(app) {
     // Project Model Policies
     app.get('/api/policies/:projectId', requireAuth, (req, res) => {
         try {
+            const tenantAccess = assertTenantAccess(req.user);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
             const { projectId } = req.params;
+            const project = db.prepare('SELECT id FROM projects WHERE id = ? AND organization_id = ?').get(projectId, tenantAccess.organizationId);
+            if (!project) {
+                return res.status(404).json({ error: 'Project not found' });
+            }
             const policy = db.prepare('SELECT * FROM project_model_policies WHERE project_id = ?').get(projectId);
 
             if (!policy) {
@@ -215,19 +276,40 @@ export function registerModelRoutes(app) {
 
     app.put('/api/policies/:projectId', requireAuth, requireRole(['admin', 'manager']), (req, res) => {
         try {
+            const tenantAccess = assertTenantAccess(req.user);
+            if (!tenantAccess.ok) {
+                return res.status(tenantAccess.status).json({ error: tenantAccess.error });
+            }
             const { projectId } = req.params;
             const { allowedModelProfileIds = [], defaultModelProfileIds = [] } = req.body;
             const now = Date.now();
+            const project = db.prepare('SELECT id FROM projects WHERE id = ? AND organization_id = ?').get(projectId, tenantAccess.organizationId);
+            if (!project) {
+                return res.status(404).json({ error: 'Project not found' });
+            }
+            const profileIds = [...allowedModelProfileIds, ...defaultModelProfileIds];
+            if (profileIds.length > 0) {
+                const placeholders = profileIds.map(() => '?').join(', ');
+                const rows = db.prepare(`
+                    SELECT id FROM model_profiles
+                    WHERE organization_id = ? AND id IN (${placeholders})
+                `).all(tenantAccess.organizationId, ...profileIds);
+                if (rows.length !== new Set(profileIds).size) {
+                    return res.status(400).json({ error: 'One or more profiles are outside this organization' });
+                }
+            }
 
             db.prepare(`
-        INSERT INTO project_model_policies (project_id, allowed_profile_ids, default_profile_ids, updated_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO project_model_policies (project_id, organization_id, allowed_profile_ids, default_profile_ids, updated_at)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(project_id) DO UPDATE SET
+          organization_id = excluded.organization_id,
           allowed_profile_ids = excluded.allowed_profile_ids,
           default_profile_ids = excluded.default_profile_ids,
           updated_at = excluded.updated_at
       `).run(
                 projectId,
+                tenantAccess.organizationId,
                 JSON.stringify(allowedModelProfileIds),
                 JSON.stringify(defaultModelProfileIds),
                 now

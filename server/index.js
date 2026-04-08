@@ -19,6 +19,7 @@ import { registerTemplateRoutes } from './routes/templates.js';
 import { registerIAARoutes } from './routes/iaa.js';
 import { registerBillingRoutes } from './routes/billing.js';
 import { startImportWorker } from './services/importWorker.js';
+import { getTenantOrganizationId } from './services/tenantScope.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -103,9 +104,12 @@ const getApiKey = (req, envVarName) => {
     const connectionIdQuery = typeof req.query?.connectionId === 'string' ? req.query.connectionId : null;
     const connectionId = connectionIdHeader || connectionIdQuery;
     if (connectionId) {
-        const record = getDatabase()
-            .prepare('SELECT api_key FROM provider_connections WHERE id = ?')
-            .get(connectionId);
+        const organizationId = getTenantOrganizationId(req.user);
+        const record = organizationId
+            ? getDatabase()
+                .prepare('SELECT api_key FROM provider_connections WHERE id = ? AND organization_id = ?')
+                .get(connectionId, organizationId)
+            : null;
         if (record?.api_key) {
             return record.api_key;
         }

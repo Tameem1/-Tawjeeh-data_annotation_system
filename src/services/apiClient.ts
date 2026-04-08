@@ -34,6 +34,7 @@ export interface AuthResponse {
     id: string;
     username: string;
     roles: string[];
+    organizationId?: string | null;
     mustChangePassword?: boolean;
     hasActiveAccess: boolean;
     accessStatus: string;
@@ -45,6 +46,7 @@ export interface CurrentUserResponse {
     id: string;
     username: string;
     roles: string[];
+    organizationId?: string | null;
     mustChangePassword?: boolean;
     hasActiveAccess: boolean;
     accessStatus: string;

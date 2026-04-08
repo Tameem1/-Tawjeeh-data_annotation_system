@@ -32,7 +32,7 @@ const ModelManagement = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { currentUser } = useAuth();
-  const isManager = currentUser?.roles?.includes("manager") || currentUser?.roles?.includes("admin");
+  const isManager = (!!currentUser?.organizationId) && (currentUser?.roles?.includes("manager") || currentUser?.roles?.includes("admin"));
   const isSuperAdmin = currentUser?.roles?.includes("super_admin");
 
   const [connections, setConnections] = useState<ProviderConnection[]>([]);

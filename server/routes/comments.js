@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { getDatabase } from '../services/database.js';
 import { createNotification } from '../services/notificationService.js';
-import { getTenantAdminId, isProjectInTenant } from '../services/tenantScope.js';
+import { getTenantOrganizationId, isProjectInTenant } from '../services/tenantScope.js';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -44,7 +44,7 @@ const hasProjectAccess = (db, projectId, user) => {
         return { ok: false, status: 404, error: 'Project not found', project: null };
     }
 
-    if (!isProjectInTenant(project, getTenantAdminId(user))) {
+    if (!isProjectInTenant(project, getTenantOrganizationId(user))) {
         return { ok: false, status: 403, error: 'Access denied', project };
     }
 
