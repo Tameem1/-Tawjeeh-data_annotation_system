@@ -37,6 +37,8 @@ export const SUBSCRIPTION_STATUSES = ['active', 'expired', 'canceled'];
 export const DEMO_REQUEST_STATUSES = ['new', 'contacted', 'booked', 'closed'];
 export const EMAIL_LOG_STATUSES = ['sent', 'failed'];
 export const EMAIL_TYPES = [
+  'free_trial_activated',
+  'admin_welcome',
   'subscription_activated',
   'payment_receipt',
   'subscription_expiring',

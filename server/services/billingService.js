@@ -558,16 +558,45 @@ function logEmailAttempt({ userId, subscriptionId = null, paymentRecordId = null
   );
 }
 
+function hasActiveTrial(summary, currentTime = nowTs()) {
+  return Boolean(
+    summary?.subscription
+    && summary.subscription.status === 'active'
+    && summary.subscription.trialEndsAt !== null
+    && summary.subscription.trialEndsAt >= currentTime,
+  );
+}
+
+function hasEmailBeenSent(userId, emailType) {
+  const row = getDatabase().prepare(`
+    SELECT 1
+    FROM subscription_email_log
+    WHERE user_id = ? AND email_type = ? AND status = 'sent'
+    LIMIT 1
+  `).get(userId, emailType);
+  return Boolean(row);
+}
+
 function buildEmailContent(emailType, summary, payment = null) {
   const planLabel = summary.subscription ? PLAN_DEFINITIONS[summary.subscription.planType]?.label || summary.subscription.planType : 'No plan';
   const startDate = summary.subscription?.startAt ? new Date(summary.subscription.startAt).toLocaleDateString('en-US') : 'N/A';
+  const trialEndDate = summary.subscription?.trialEndsAt ? new Date(summary.subscription.trialEndsAt).toLocaleDateString('en-US') : 'N/A';
   const expiryDate = summary.subscription?.expiresAt ? new Date(summary.subscription.expiresAt).toLocaleDateString('en-US') : 'Lifetime access';
   const nextBillingDate = summary.nextBillingDate ? new Date(summary.nextBillingDate).toLocaleDateString('en-US') : 'N/A';
   const amountDue = formatMoney(summary.amountDueCents);
   const totalPaid = formatMoney(summary.totalPaidCents);
   const paymentAmount = payment ? formatMoney(payment.amountCents) : null;
+  const includedSeats = PLAN_DEFINITIONS[summary.subscription?.planType || 'monthly']?.includedSeats;
 
   const messageMap = {
+    free_trial_activated: {
+      subject: `Your Tawjeeh Annotation free trial is active`,
+      intro: `Your admin access is now active on a free trial.`,
+    },
+    admin_welcome: {
+      subject: `Welcome to Tawjeeh Annotation`,
+      intro: `Welcome to Tawjeeh Annotation. Your admin workspace is ready.`,
+    },
     subscription_activated: {
       subject: `Your ${planLabel} subscription is active`,
       intro: `Your ${planLabel.toLowerCase()} access to Tawjeeh Annotation has been activated.`,
@@ -593,21 +622,66 @@ function buildEmailContent(emailType, summary, payment = null) {
   const selected = messageMap[emailType];
   if (!selected) throw new Error('Unsupported email type');
 
-  const lines = [
-    selected.intro,
-    '',
-    `Plan: ${planLabel}`,
-    `Start date: ${startDate}`,
-    `Expiry date: ${expiryDate}`,
-    `Next billing date: ${nextBillingDate}`,
-    `Total paid: ${totalPaid}`,
-    `Amount due: ${amountDue}`,
-  ];
+  let lines = [];
+  let htmlBody = '';
 
-  const text = `${selected.subject}\n\n${lines.join('\n')}`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; color: #14213d; line-height: 1.6;">
-      <h2 style="margin-bottom: 12px;">${selected.subject}</h2>
+  if (emailType === 'free_trial_activated') {
+    lines = [
+      selected.intro,
+      '',
+      `Plan: ${planLabel}`,
+      `Trial end date: ${trialEndDate}`,
+      `Billing starts: ${nextBillingDate}`,
+      '',
+      'You can begin setting up projects, inviting your team, configuring annotation workflows, and reviewing QA dashboards right away.',
+    ];
+    htmlBody = `
+      <p>${selected.intro}</p>
+      <table style="border-collapse: collapse; margin-top: 16px;">
+        <tr><td style="padding: 4px 12px 4px 0;"><strong>Plan</strong></td><td>${planLabel}</td></tr>
+        <tr><td style="padding: 4px 12px 4px 0;"><strong>Trial end date</strong></td><td>${trialEndDate}</td></tr>
+        <tr><td style="padding: 4px 12px 4px 0;"><strong>Billing starts</strong></td><td>${nextBillingDate}</td></tr>
+      </table>
+      <p style="margin-top: 16px;">You can now create projects, invite managers and annotators, configure annotation forms, and review QA activity from your admin workspace.</p>
+    `;
+  } else if (emailType === 'admin_welcome') {
+    lines = [
+      selected.intro,
+      '',
+      `Plan: ${planLabel}`,
+      `Access starts: ${startDate}`,
+      ...(summary.subscription?.trialEndsAt ? [`Trial end date: ${trialEndDate}`] : []),
+      ...(summary.nextBillingDate ? [`Next billing date: ${nextBillingDate}`] : []),
+      includedSeats ? `Included seats: ${includedSeats.managers} managers, ${includedSeats.annotators} annotators` : null,
+      '',
+      'Your admin workspace includes project setup, AI-assisted annotation, bilingual collaboration, invite-based team onboarding, and QA dashboards.',
+      'You can sign in with your admin account to get started.',
+    ].filter(Boolean);
+    htmlBody = `
+      <p>${selected.intro}</p>
+      <p>Tawjeeh Annotation gives your team a self-hosted annotation workspace with AI-assisted labeling, bilingual collaboration, invite-based onboarding, and QA dashboards.</p>
+      <table style="border-collapse: collapse; margin-top: 16px;">
+        <tr><td style="padding: 4px 12px 4px 0;"><strong>Plan</strong></td><td>${planLabel}</td></tr>
+        <tr><td style="padding: 4px 12px 4px 0;"><strong>Access starts</strong></td><td>${startDate}</td></tr>
+        ${summary.subscription?.trialEndsAt ? `<tr><td style="padding: 4px 12px 4px 0;"><strong>Trial end date</strong></td><td>${trialEndDate}</td></tr>` : ''}
+        ${summary.nextBillingDate ? `<tr><td style="padding: 4px 12px 4px 0;"><strong>Next billing date</strong></td><td>${nextBillingDate}</td></tr>` : ''}
+        ${includedSeats ? `<tr><td style="padding: 4px 12px 4px 0;"><strong>Included seats</strong></td><td>${includedSeats.managers} managers, ${includedSeats.annotators} annotators</td></tr>` : ''}
+      </table>
+      <p style="margin-top: 16px;">You can now create projects, configure annotation forms, invite your team, and start reviewing annotation progress and quality.</p>
+      <p style="margin-top: 16px;">Sign in with your admin account to get started.</p>
+    `;
+  } else {
+    lines = [
+      selected.intro,
+      '',
+      `Plan: ${planLabel}`,
+      `Start date: ${startDate}`,
+      `Expiry date: ${expiryDate}`,
+      `Next billing date: ${nextBillingDate}`,
+      `Total paid: ${totalPaid}`,
+      `Amount due: ${amountDue}`,
+    ];
+    htmlBody = `
       <p>${selected.intro}</p>
       <table style="border-collapse: collapse; margin-top: 16px;">
         <tr><td style="padding: 4px 12px 4px 0;"><strong>Plan</strong></td><td>${planLabel}</td></tr>
@@ -617,6 +691,14 @@ function buildEmailContent(emailType, summary, payment = null) {
         <tr><td style="padding: 4px 12px 4px 0;"><strong>Total paid</strong></td><td>${totalPaid}</td></tr>
         <tr><td style="padding: 4px 12px 4px 0;"><strong>Amount due</strong></td><td>${amountDue}</td></tr>
       </table>
+    `;
+  }
+
+  const text = `${selected.subject}\n\n${lines.join('\n')}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #14213d; line-height: 1.6;">
+      <h2 style="margin-bottom: 12px;">${selected.subject}</h2>
+      ${htmlBody}
       <p style="margin-top: 16px;">Thank you for choosing Tawjeeh Annotation.</p>
     </div>
   `;
@@ -734,10 +816,22 @@ export async function sendSubscriptionLifecycleEmailForUpdate(previousSummary, n
 
   const prevActive = Boolean(previousSummary?.activeAccess);
   const nextActive = Boolean(nextSummary.activeAccess);
-  const emailType = previousSummary?.subscription && !prevActive && nextActive
-    ? 'subscription_reactivated'
-    : 'subscription_activated';
-  return sendSubscriptionEmail({ userId: nextSummary.userId, emailType });
+  const previousTrialActive = hasActiveTrial(previousSummary);
+  const nextTrialActive = hasActiveTrial(nextSummary);
+  const results = [];
+
+  if (nextTrialActive && (!previousTrialActive || previousSummary?.subscription?.trialEndsAt !== nextSummary.subscription.trialEndsAt)) {
+    results.push(await sendSubscriptionEmail({ userId: nextSummary.userId, emailType: 'free_trial_activated' }));
+  } else if (!prevActive && nextActive) {
+    const emailType = previousSummary?.subscription ? 'subscription_reactivated' : 'subscription_activated';
+    results.push(await sendSubscriptionEmail({ userId: nextSummary.userId, emailType }));
+  }
+
+  if (!prevActive && nextActive && !hasEmailBeenSent(nextSummary.userId, 'admin_welcome')) {
+    results.push(await sendSubscriptionEmail({ userId: nextSummary.userId, emailType: 'admin_welcome' }));
+  }
+
+  return results;
 }
 
 export async function sendPaymentReceipt(userId, paymentRecordId) {
