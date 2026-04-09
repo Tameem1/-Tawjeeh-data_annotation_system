@@ -100,6 +100,7 @@ function parseSubscription(row) {
     planType: row.plan_type,
     status: row.status,
     startAt: row.start_at,
+    trialEndsAt: row.trial_ends_at,
     billingAnchorAt: row.billing_anchor_at,
     expiresAt: row.expires_at,
     priceSnapshotCents: row.price_snapshot_cents,
@@ -252,7 +253,10 @@ export function getSubscriptionSummary(userId) {
   if (subscription) {
     planPriceCents = subscription.priceSnapshotCents || getPlanPriceCents(subscription.planType);
     if (subscription.planType === 'lifetime') {
-      totalChargedCents = subscription.status === 'canceled' ? 0 : planPriceCents;
+      totalChargedCents = subscription.status === 'canceled'
+        ? 0
+        : countElapsedCycles(subscription.planType, subscription.billingAnchorAt, currentTime) * planPriceCents;
+      nextBillingDate = subscription.billingAnchorAt > currentTime ? subscription.billingAnchorAt : null;
     } else if (subscription.billingAnchorAt) {
       totalChargedCents = countElapsedCycles(subscription.planType, subscription.billingAnchorAt, currentTime) * planPriceCents;
       nextBillingDate = getNextBillingDate(subscription.planType, subscription.billingAnchorAt, currentTime);
@@ -262,10 +266,19 @@ export function getSubscriptionSummary(userId) {
   const totalPaidCents = payments.reduce((sum, payment) => sum + payment.amountCents, 0);
   const amountDueCents = Math.max(totalChargedCents - totalPaidCents, 0);
   const creditCents = Math.max(totalPaidCents - totalChargedCents, 0);
+  const hasActiveTrial = Boolean(
+    subscription
+    && subscription.status === 'active'
+    && subscription.trialEndsAt !== null
+    && subscription.trialEndsAt >= currentTime,
+  );
   const activeAccess = subscription
     ? (
-      subscription.status === 'active'
-      && (subscription.planType === 'lifetime' || (subscription.expiresAt !== null && subscription.expiresAt >= currentTime))
+      hasActiveTrial
+      || (
+        subscription.status === 'active'
+        && (subscription.planType === 'lifetime' || (subscription.expiresAt !== null && subscription.expiresAt >= currentTime))
+      )
     )
     : false;
 
@@ -361,8 +374,17 @@ export function upsertSubscription(userId, input, actorId) {
   const planType = ensurePlanType(input.planType);
   const status = ensureStatus(input.status);
   const startAt = numberOrNull(input.startAt) ?? nowTs();
-  const billingAnchorAt = numberOrNull(input.billingAnchorAt) ?? startAt;
-  const expiresAt = planType === 'lifetime' ? null : addPlanDuration(planType, startAt);
+  const rawTrialEndsAt = input.trialEndsAt;
+  const requestedTrialEndsAt = numberOrNull(rawTrialEndsAt);
+  if (rawTrialEndsAt !== undefined && rawTrialEndsAt !== null && rawTrialEndsAt !== '' && requestedTrialEndsAt === null) {
+    throw new Error('Free trial end date is invalid');
+  }
+  if (requestedTrialEndsAt !== null && requestedTrialEndsAt < startAt) {
+    throw new Error('Free trial end date must be on or after the start date');
+  }
+  const trialEndsAt = requestedTrialEndsAt && requestedTrialEndsAt >= startAt ? requestedTrialEndsAt : null;
+  const billingAnchorAt = numberOrNull(input.billingAnchorAt) ?? trialEndsAt ?? startAt;
+  const expiresAt = planType === 'lifetime' ? null : addPlanDuration(planType, billingAnchorAt);
   const notes = String(input.notes ?? '').trim();
   const contactEmail = String(input.contactEmail ?? '').trim();
   const currentTime = nowTs();
@@ -371,7 +393,7 @@ export function upsertSubscription(userId, input, actorId) {
   if (existing) {
     db.prepare(`
       UPDATE subscriptions
-      SET contact_email = ?, plan_type = ?, status = ?, start_at = ?, billing_anchor_at = ?,
+      SET contact_email = ?, plan_type = ?, status = ?, start_at = ?, trial_ends_at = ?, billing_anchor_at = ?,
           expires_at = ?, price_snapshot_cents = ?, notes = ?, updated_by = ?, updated_at = ?
       WHERE user_id = ?
     `).run(
@@ -379,6 +401,7 @@ export function upsertSubscription(userId, input, actorId) {
       planType,
       status,
       startAt,
+      trialEndsAt,
       billingAnchorAt,
       expiresAt,
       getPlanPriceCents(planType),
@@ -390,10 +413,10 @@ export function upsertSubscription(userId, input, actorId) {
   } else {
     db.prepare(`
       INSERT INTO subscriptions (
-        id, user_id, contact_email, plan_type, status, start_at, billing_anchor_at, expires_at,
+        id, user_id, contact_email, plan_type, status, start_at, trial_ends_at, billing_anchor_at, expires_at,
         price_snapshot_cents, notes, updated_by, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       crypto.randomUUID(),
       userId,
@@ -401,6 +424,7 @@ export function upsertSubscription(userId, input, actorId) {
       planType,
       status,
       startAt,
+      trialEndsAt,
       billingAnchorAt,
       expiresAt,
       getPlanPriceCents(planType),

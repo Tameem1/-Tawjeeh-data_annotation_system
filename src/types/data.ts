@@ -243,6 +243,7 @@ export interface SubscriptionRecord {
     planType: SubscriptionPlan;
     status: SubscriptionStatus;
     startAt: number;
+    trialEndsAt: number | null;
     billingAnchorAt: number;
     expiresAt: number | null;
     priceSnapshotCents: number;

@@ -45,6 +45,8 @@ export default function BillingAdmin() {
     planType: "monthly" as SubscriptionPlan,
     status: "active" as SubscriptionStatus,
     startDate: toDateInput(Date.now()),
+    hasFreeTrial: false,
+    trialEndDate: "",
     notes: "",
   });
   const [paymentForm, setPaymentForm] = useState({
@@ -94,6 +96,8 @@ export default function BillingAdmin() {
       planType: selectedUser.subscription?.planType || "monthly",
       status: selectedUser.subscription?.status || "active",
       startDate: toDateInput(selectedUser.subscription?.startAt || Date.now()),
+      hasFreeTrial: Boolean(selectedUser.subscription?.trialEndsAt),
+      trialEndDate: toDateInput(selectedUser.subscription?.trialEndsAt),
       notes: selectedUser.subscription?.notes || "",
     });
   }, [selectedUserId, selectedUser]);
@@ -153,12 +157,23 @@ export default function BillingAdmin() {
 
   const saveSubscription = async () => {
     if (!selectedUser) return;
+    if (subscriptionForm.hasFreeTrial && !subscriptionForm.trialEndDate) {
+      toast({
+        variant: "destructive",
+        title: "Free trial end date required",
+        description: "Choose when the free trial should end before saving the subscription.",
+      });
+      return;
+    }
     try {
       await apiClient.billing.updateSubscription(selectedUser.userId, {
         contactEmail: subscriptionForm.contactEmail,
         planType: subscriptionForm.planType,
         status: subscriptionForm.status,
         startAt: fromDateInput(subscriptionForm.startDate),
+        trialEndsAt: subscriptionForm.hasFreeTrial && subscriptionForm.trialEndDate
+          ? fromDateInput(subscriptionForm.trialEndDate)
+          : null,
         notes: subscriptionForm.notes,
       });
       toast({ title: "Subscription updated", description: `Access for ${selectedUser.username} has been refreshed.` });
@@ -343,6 +358,15 @@ export default function BillingAdmin() {
                   </Card>
                 </div>
 
+                {selectedUser.subscription?.trialEndsAt && (
+                  <Card className="rounded-[1.6rem]">
+                    <CardHeader className="pb-2">
+                      <CardDescription>Free Trial Ends</CardDescription>
+                      <CardTitle className="text-lg">{format(new Date(selectedUser.subscription.trialEndsAt), "MMM d, yyyy")}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                )}
+
                 <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
                   <Card className="rounded-[2rem]">
                     <CardHeader>
@@ -350,7 +374,7 @@ export default function BillingAdmin() {
                         <CalendarClock className="h-5 w-5" />
                         Subscription Assignment
                       </CardTitle>
-                      <CardDescription>Assign plan, billing start date, and subscriber email.</CardDescription>
+                      <CardDescription>Assign plan, billing start date, optional free trial, and subscriber email.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
                       <div className="space-y-2">
@@ -385,6 +409,35 @@ export default function BillingAdmin() {
                         <div className="space-y-2">
                           <Label>Start Date</Label>
                           <Input type="date" value={subscriptionForm.startDate} onChange={(event) => setSubscriptionForm((prev) => ({ ...prev, startDate: event.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Free Trial</Label>
+                          <Select
+                            value={subscriptionForm.hasFreeTrial ? "enabled" : "disabled"}
+                            onValueChange={(value) => setSubscriptionForm((prev) => ({
+                              ...prev,
+                              hasFreeTrial: value === "enabled",
+                              trialEndDate: value === "enabled" ? (prev.trialEndDate || prev.startDate) : "",
+                            }))}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="disabled">No free trial</SelectItem>
+                              <SelectItem value="enabled">Enable free trial</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Free Trial End Date</Label>
+                          <Input
+                            type="date"
+                            value={subscriptionForm.trialEndDate}
+                            min={subscriptionForm.startDate}
+                            disabled={!subscriptionForm.hasFreeTrial}
+                            onChange={(event) => setSubscriptionForm((prev) => ({ ...prev, trialEndDate: event.target.value }))}
+                          />
                         </div>
                       </div>
                       <div className="space-y-2">

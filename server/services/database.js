@@ -320,6 +320,7 @@ function createSchema() {
       plan_type TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
       start_at INTEGER NOT NULL,
+      trial_ends_at INTEGER,
       billing_anchor_at INTEGER NOT NULL,
       expires_at INTEGER,
       price_snapshot_cents INTEGER NOT NULL,
@@ -451,6 +452,7 @@ function createSchema() {
     `ALTER TABLE projects ADD COLUMN guidelines TEXT`,
     `ALTER TABLE projects ADD COLUMN is_demo INTEGER DEFAULT 0`,
     `ALTER TABLE subscriptions ADD COLUMN contact_email TEXT`,
+    `ALTER TABLE subscriptions ADD COLUMN trial_ends_at INTEGER`,
     // Task templates
     `CREATE TABLE IF NOT EXISTS task_templates (
       id TEXT PRIMARY KEY,

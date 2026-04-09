@@ -416,6 +416,7 @@ export const apiClient = {
             planType: SubscriptionPlan;
             status: SubscriptionStatus;
             startAt: number;
+            trialEndsAt?: number | null;
             billingAnchorAt?: number;
             notes?: string;
             contactEmail?: string;
