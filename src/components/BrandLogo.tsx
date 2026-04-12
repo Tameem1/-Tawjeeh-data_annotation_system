@@ -12,11 +12,15 @@ export function BrandLogo({
   alt = "Tawjeeh AI logo",
 }: BrandLogoProps) {
   return (
-    <div className={cn("flex items-center justify-center", className)}>
-      <img
-        src="/tawjeeh-ai-logo.png"
-        alt={alt}
-        className={cn("h-full w-full object-contain", imageClassName)}
+    <div className={cn("flex items-center justify-center text-black dark:text-white", className)}>
+      <span
+        role="img"
+        aria-label={alt}
+        className={cn("block h-full w-full bg-current", imageClassName)}
+        style={{
+          WebkitMask: "url('/tawjeeh-ai-logo.png') center / contain no-repeat",
+          mask: "url('/tawjeeh-ai-logo.png') center / contain no-repeat",
+        }}
       />
     </div>
   );

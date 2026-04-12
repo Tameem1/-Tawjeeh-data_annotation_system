@@ -1,7 +1,7 @@
 import { isSuperAdmin } from './permissions.js';
 
 export function isTenantUser(user) {
-  return !!user && !isSuperAdmin(user) && !!user.organization_id;
+  return !!user && !!user.organization_id;
 }
 
 export function getTenantOrganizationId(user) {

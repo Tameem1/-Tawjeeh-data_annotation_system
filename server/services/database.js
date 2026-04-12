@@ -553,10 +553,18 @@ function createSchema() {
     FROM users
     ORDER BY created_at ASC
   `).all();
-  const nonSuperAdmins = adminUsers.filter((user) => {
+  const workspaceAdmins = adminUsers.filter((user) => {
     try {
       const roles = JSON.parse(user.roles);
-      return Array.isArray(roles) && roles.includes('admin') && !roles.includes('super_admin');
+      return Array.isArray(roles) && roles.includes('admin');
+    } catch {
+      return false;
+    }
+  });
+  const nonSuperAdmins = workspaceAdmins.filter((user) => {
+    try {
+      const roles = JSON.parse(user.roles);
+      return Array.isArray(roles) && !roles.includes('super_admin');
     } catch {
       return false;
     }
@@ -568,7 +576,7 @@ function createSchema() {
     VALUES (?, ?, ?, ?, ?)
   `);
 
-  for (const admin of nonSuperAdmins) {
+  for (const admin of workspaceAdmins) {
     let organizationId = admin.organization_id || selectOrganizationByOwner.get(admin.id)?.id || null;
     if (!organizationId) {
       organizationId = crypto.randomUUID();
@@ -585,10 +593,11 @@ function createSchema() {
       .run(admin.id, organizationId, now, admin.id);
   }
 
-  const fallbackOrganizationId = nonSuperAdmins.length > 0
-    ? organizationByAdminId.get(nonSuperAdmins[0].id)
+  const fallbackAdmin = nonSuperAdmins[0] || workspaceAdmins[0] || null;
+  const fallbackOrganizationId = fallbackAdmin
+    ? organizationByAdminId.get(fallbackAdmin.id)
     : null;
-  const fallbackAdminId = nonSuperAdmins[0]?.id || null;
+  const fallbackAdminId = fallbackAdmin?.id || null;
 
   if (fallbackOrganizationId && fallbackAdminId) {
     db.prepare(`
