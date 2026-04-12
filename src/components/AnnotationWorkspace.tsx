@@ -216,7 +216,7 @@ const AnnotationWorkspace = () => {
             <div className="flex items-center gap-2">
               <BrandLogo className="brand-tile h-9 w-9 rounded-lg p-1.5" />
               <div>
-                <h1 className="text-xl font-semibold text-foreground">Tawjeeh Annotation</h1>
+                <h1 className="text-xl font-semibold text-foreground">Tawjeeh Qalam</h1>
                 <p className="text-sm text-muted-foreground">Translation {currentSample} of {totalSamples}</p>
               </div>
             </div>

@@ -1,6 +1,6 @@
-# Contributing to Tawjeeh Annotation
+# Contributing to Tawjeeh Qalam
 
-Thank you for your interest in contributing to Tawjeeh Annotation! We welcome contributions from the community to help make this tool better for everyone.
+Thank you for your interest in contributing to Tawjeeh Qalam! We welcome contributions from the community to help make this tool better for everyone.
 
 ## Getting Started
 

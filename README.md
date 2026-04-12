@@ -1,4 +1,4 @@
-# Tawjeeh Annotation
+# Tawjeeh Qalam
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
@@ -10,15 +10,15 @@
 
 A professional, fully self-hosted data annotation platform — built for teams who want **full ownership** of their labeling pipeline, AI-assisted workflows, and quality assurance tooling.
 
-![Tawjeeh Annotation demo](docs/assets/demo.gif)
+![Tawjeeh Qalam demo](docs/assets/demo.gif)
 
 ---
 
-## Why Tawjeeh Annotation?
+## Why Tawjeeh Qalam?
 
 > Annotation tools shouldn't lock your data into a cloud you don't control.
 
-Tawjeeh Annotation gives your team a complete annotation environment — with AI-assisted labeling, inter-annotator agreement tracking, role-based access, and bilingual (Arabic/English) support — running entirely on your own infrastructure.
+Tawjeeh Qalam gives your team a complete annotation environment — with AI-assisted labeling, inter-annotator agreement tracking, role-based access, and bilingual (Arabic/English) support — running entirely on your own infrastructure.
 
 ---
 
@@ -271,4 +271,4 @@ See the [LICENSE](LICENSE) file for full details.
 
 ---
 
-Built with care by the **Tawjeeh Annotation** team.
+Built with care by the **Tawjeeh Qalam** team.

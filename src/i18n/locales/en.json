@@ -38,7 +38,7 @@
   },
   "auth": {
     "loginTitle": "Welcome Back",
-    "loginSubtitle": "Sign in to Tawjeeh Annotation",
+    "loginSubtitle": "Sign in to Tawjeeh Qalam",
     "usernameLabel": "Username",
     "passwordLabel": "Password",
     "loginButton": "Sign In",
@@ -61,7 +61,7 @@
     "settings": "Settings"
   },
   "dashboard": {
-    "title": "Tawjeeh Annotation",
+    "title": "Tawjeeh Qalam",
     "subtitle": "AI-powered annotation platform",
     "newProject": "New Project",
     "projectName": "Project Name",
@@ -690,7 +690,7 @@
   "tour": {
     "dashboard": {
       "welcome": {
-        "title": "Welcome to Tawjeeh Annotation",
+        "title": "Welcome to Tawjeeh Qalam",
         "description": "This quick tour will walk you through the key features of the platform. Use <b>Next</b> to continue or press <b>Esc</b> to exit at any time."
       },
       "assignedProjects": {
@@ -719,7 +719,7 @@
       },
       "replayTour": {
         "title": "Replay This Tour",
-        "description": "You can always reopen this tour by clicking the <b>?</b> button here. Enjoy using Tawjeeh Annotation!"
+        "description": "You can always reopen this tour by clicking the <b>?</b> button here. Enjoy using Tawjeeh Qalam!"
       }
     },
     "workspace": {
@@ -755,7 +755,7 @@
   },
   "landing": {
     "header": {
-      "brand": "Tawjeeh Annotation",
+      "brand": "Tawjeeh Qalam",
       "tagline": "Annotation infrastructure for teams that need speed, quality, and control."
     },
     "hero": {
@@ -908,7 +908,7 @@
       "toastFailedDescription": "Please try again."
     },
     "footer": {
-      "copy": "Tawjeeh Annotation helps teams run AI-assisted annotation with stronger QA and bilingual collaboration.",
+      "copy": "Tawjeeh Qalam helps teams run AI-assisted annotation with stronger QA and bilingual collaboration.",
       "inviteSignup": "Invite Signup",
       "appLogin": "App Login"
     }

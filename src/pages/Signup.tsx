@@ -160,7 +160,7 @@ export default function Signup() {
           <BrandLogo className="brand-tile mx-auto mb-4 h-16 w-16 rounded-[1.2rem] p-2.5" />
           <p className="eyebrow">Invite Signup</p>
           <CardTitle>Create Your Account</CardTitle>
-          <CardDescription className="body-airy mt-2">You&apos;ve been invited to join Tawjeeh Annotation.</CardDescription>
+          <CardDescription className="body-airy mt-2">You&apos;ve been invited to join Tawjeeh Qalam.</CardDescription>
           <div className="mt-4 flex justify-center gap-2">
             {assignedRoles.map((role) => (
               <Badge key={role} variant="secondary" className="capitalize tracking-[0.08em]">

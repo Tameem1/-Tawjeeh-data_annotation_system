@@ -9,7 +9,7 @@ type BrandLogoProps = {
 export function BrandLogo({
   className,
   imageClassName,
-  alt = "Tawjeeh AI logo",
+  alt = "Tawjeeh Qalam logo",
 }: BrandLogoProps) {
   return (
     <div className={cn("flex items-center justify-center text-black dark:text-white", className)}>

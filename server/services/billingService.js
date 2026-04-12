@@ -590,31 +590,31 @@ function buildEmailContent(emailType, summary, payment = null) {
 
   const messageMap = {
     free_trial_activated: {
-      subject: `Your Tawjeeh Annotation free trial is active`,
+      subject: `Your Tawjeeh Qalam free trial is active`,
       intro: `Your admin access is now active on a free trial.`,
     },
     admin_welcome: {
-      subject: `Welcome to Tawjeeh Annotation`,
-      intro: `Welcome to Tawjeeh Annotation. Your admin workspace is ready.`,
+      subject: `Welcome to Tawjeeh Qalam`,
+      intro: `Welcome to Tawjeeh Qalam. Your admin workspace is ready.`,
     },
     subscription_activated: {
       subject: `Your ${planLabel} subscription is active`,
-      intro: `Your ${planLabel.toLowerCase()} access to Tawjeeh Annotation has been activated.`,
+      intro: `Your ${planLabel.toLowerCase()} access to Tawjeeh Qalam has been activated.`,
     },
     payment_receipt: {
-      subject: `Payment received for Tawjeeh Annotation`,
+      subject: `Payment received for Tawjeeh Qalam`,
       intro: `We recorded your payment of ${paymentAmount}.`,
     },
     subscription_expiring: {
-      subject: `Your Tawjeeh Annotation subscription is expiring soon`,
+      subject: `Your Tawjeeh Qalam subscription is expiring soon`,
       intro: `Your ${planLabel.toLowerCase()} access is approaching its expiry date.`,
     },
     subscription_expired: {
-      subject: `Your Tawjeeh Annotation subscription has expired`,
+      subject: `Your Tawjeeh Qalam subscription has expired`,
       intro: `Your ${planLabel.toLowerCase()} access has expired and needs renewal.`,
     },
     subscription_reactivated: {
-      subject: `Your Tawjeeh Annotation access has been reactivated`,
+      subject: `Your Tawjeeh Qalam access has been reactivated`,
       intro: `Your ${planLabel.toLowerCase()} access has been renewed and reactivated.`,
     },
   };
@@ -659,7 +659,7 @@ function buildEmailContent(emailType, summary, payment = null) {
     ].filter(Boolean);
     htmlBody = `
       <p>${selected.intro}</p>
-      <p>Tawjeeh Annotation gives your team a self-hosted annotation workspace with AI-assisted labeling, bilingual collaboration, invite-based onboarding, and QA dashboards.</p>
+      <p>Tawjeeh Qalam gives your team a self-hosted annotation workspace with AI-assisted labeling, bilingual collaboration, invite-based onboarding, and QA dashboards.</p>
       <table style="border-collapse: collapse; margin-top: 16px;">
         <tr><td style="padding: 4px 12px 4px 0;"><strong>Plan</strong></td><td>${planLabel}</td></tr>
         <tr><td style="padding: 4px 12px 4px 0;"><strong>Access starts</strong></td><td>${startDate}</td></tr>
@@ -699,7 +699,7 @@ function buildEmailContent(emailType, summary, payment = null) {
     <div style="font-family: Arial, sans-serif; color: #14213d; line-height: 1.6;">
       <h2 style="margin-bottom: 12px;">${selected.subject}</h2>
       ${htmlBody}
-      <p style="margin-top: 16px;">Thank you for choosing Tawjeeh Annotation.</p>
+      <p style="margin-top: 16px;">Thank you for choosing Tawjeeh Qalam.</p>
     </div>
   `;
 

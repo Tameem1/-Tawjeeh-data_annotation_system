@@ -2508,7 +2508,7 @@ const DataLabelingWorkspace = () => {
               <div className="h-5 w-px bg-border mx-0.5 shrink-0" />
               <BrandLogo className="brand-tile h-8 w-8 rounded-lg p-1 shrink-0" />
               <div className="min-w-0">
-                <h1 className="text-sm font-semibold text-foreground truncate">{projectName || 'Tawjeeh Annotation'}</h1>
+                <h1 className="text-sm font-semibold text-foreground truncate">{projectName || 'Tawjeeh Qalam'}</h1>
                 <p className="text-xs text-muted-foreground">
                   {dataPoints.length > 0 ? t("workspace.dataPointOf", { current: globalCurrentRecordIndex, total: globalTotalItems }) : t("workspace.noDataLoaded")}
                 </p>

@@ -38,7 +38,7 @@
   },
   "auth": {
     "loginTitle": "مرحباً بعودتك",
-    "loginSubtitle": "تسجيل الدخول إلى Tawjeeh Annotation",
+    "loginSubtitle": "تسجيل الدخول إلى Tawjeeh Qalam",
     "usernameLabel": "اسم المستخدم",
     "passwordLabel": "كلمة المرور",
     "loginButton": "دخول",
@@ -61,7 +61,7 @@
     "settings": "الإعدادات"
   },
   "dashboard": {
-    "title": "Tawjeeh Annotation",
+    "title": "Tawjeeh Qalam",
     "subtitle": "منصة التوسيم المدعومة بالذكاء الاصطناعي",
     "newProject": "مشروع جديد",
     "projectName": "اسم المشروع",
@@ -690,7 +690,7 @@
   "tour": {
     "dashboard": {
       "welcome": {
-        "title": "مرحباً بك في Tawjeeh Annotation",
+        "title": "مرحباً بك في Tawjeeh Qalam",
         "description": "ستُرشدك هذه الجولة عبر الميزات الرئيسية للمنصة. استخدم <b>التالي</b> للمتابعة أو اضغط <b>Esc</b> للخروج في أي وقت."
       },
       "assignedProjects": {
@@ -719,7 +719,7 @@
       },
       "replayTour": {
         "title": "إعادة تشغيل الجولة",
-        "description": "يمكنك دائماً إعادة فتح هذه الجولة بالنقر على زر <b>؟</b> هنا. استمتع باستخدام Tawjeeh Annotation!"
+        "description": "يمكنك دائماً إعادة فتح هذه الجولة بالنقر على زر <b>؟</b> هنا. استمتع باستخدام Tawjeeh Qalam!"
       }
     },
     "workspace": {
@@ -755,7 +755,7 @@
   },
   "landing": {
     "header": {
-      "brand": "Tawjeeh Annotation",
+      "brand": "Tawjeeh Qalam",
       "tagline": "بنية تحتية للتوسيم للفرق التي تحتاج إلى السرعة والجودة والتحكم."
     },
     "hero": {
@@ -908,7 +908,7 @@
       "toastFailedDescription": "يرجى المحاولة مرة أخرى."
     },
     "footer": {
-      "copy": "يساعد Tawjeeh Annotation الفرق على تشغيل التوسيم المدعوم بالذكاء الاصطناعي مع جودة أعلى وتعاون ثنائي اللغة.",
+      "copy": "يساعد Tawjeeh Qalam الفرق على تشغيل التوسيم المدعوم بالذكاء الاصطناعي مع جودة أعلى وتعاون ثنائي اللغة.",
       "inviteSignup": "تسجيل الدعوة",
       "appLogin": "دخول التطبيق"
     }

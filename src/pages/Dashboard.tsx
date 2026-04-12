@@ -308,7 +308,7 @@ const Dashboard = () => {
                 <CardHeader className="text-center">
                     <BrandLogo className="brand-tile mx-auto mb-4 h-16 w-16 rounded-[1.15rem] p-2.5" />
                     <p className="eyebrow">Workspace Login</p>
-                    <CardTitle className="text-[2.35rem]">Tawjeeh Annotation</CardTitle>
+                    <CardTitle className="text-[2.35rem]">Tawjeeh Qalam</CardTitle>
                     <CardDescription className="body-airy text-base">{t("auth.loginSubtitle")}</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -377,7 +377,7 @@ const Dashboard = () => {
                                         {workspaceRoleLabel}
                                     </span>
                                 </div>
-                                <h1 className="mt-3 text-[2.5rem] leading-[0.94] sm:text-[3rem]">Tawjeeh Annotation</h1>
+                                <h1 className="mt-3 text-[2.5rem] leading-[0.94] sm:text-[3rem]">Tawjeeh Qalam</h1>
                                 <p className="body-airy mt-3 max-w-2xl text-sm text-muted-foreground sm:text-[0.98rem]">{t("dashboard.manageProjects")}</p>
                             </div>
                         </div>

@@ -703,5 +703,5 @@ if (existsSync(distPath)) {
 }
 
 app.listen(PORT, () => {
-    console.log(`\n  Tawjeeh Annotation running at http://localhost:${PORT}\n`);
+    console.log(`\n  Tawjeeh Qalam running at http://localhost:${PORT}\n`);
 });
